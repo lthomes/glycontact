@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imageio
 import os
+from scipy.cluster import hierarchy
 
 
 def atom_contact_map(act, export='', size = 0.5) :
@@ -56,10 +57,8 @@ def make_gif(prefix,suffix):
     # prefix: prefix to include in the filename of the gif output
     # suffix: string that must be present in all PNG to combine before the '.png' extension
 
-
-    # Set the path to the directory containing your PNG files
     input_path = os.getcwd()
-
+    
     # Set the output path and filename for the GIF
     output_path = prefix + '_animation.gif'
 
@@ -78,4 +77,32 @@ def make_gif(prefix,suffix):
         images.append(imageio.imread(file_path))
 
     # Save the list of images as a GIF animation
-    imageio.mimsave(output_path, images, duration=1, loop=0)  # Adjust the duration as needed
+    imageio.mimsave(output_path, images, duration=0.2, loop=0)  # Adjust the duration as needed
+
+
+def show_correlations(corr_df,font_size=1):
+    ### Uses a correlation matrix as dataframe (corr_df) to represent it as a heatmap
+
+    sns.set(font_scale=font_size)
+    # Visualize the correlation matrix as a heatmap
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr_df, cmap='coolwarm', annot=True, fmt=".2f", linewidths=.5)
+    plt.title('Correlation Matrix of Distances')
+    plt.show()
+
+
+def show_correlation_dendrogram(corr_df, font_size = 1):
+    ### Create a hierarchical clustering dendrogram from a correlation matrix as dataframe (corr_df)
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    dendrogram = hierarchy.dendrogram(hierarchy.linkage(corr_df.values, method='ward'),
+                                    labels=corr_df.columns,
+                                    leaf_rotation=90,
+                                    leaf_font_size=8,ax=ax
+                                    )
+    ax.tick_params(axis='x', which='major', labelsize=font_size)
+    plt.title('Hierarchical Clustering Dendrogram')
+    plt.xlabel('Residue')
+    plt.ylabel('Distance')
+    plt.show()

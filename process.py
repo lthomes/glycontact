@@ -185,5 +185,18 @@ def inter_structure_variability_table(dfs, mode = 'standard'):
     if mode == 'amplify' :
         return(outdf_power)
 
+def make_correlation_matrix(dfs):
+    ### Take a list of dataframes (dfs) containing inter-monosaccharide/atom distances across different iterations of the same glycan to compute a Pearson correlation matrix
 
+    # Create an empty correlation matrix
+    correlation_matrix = np.zeros((len(dfs[0]), len(dfs[0])))
 
+    # Calculate the correlation matrix based on the distances
+    for df in dfs:
+        distances = df.values  
+        correlation_matrix += np.corrcoef(distances, rowvar=False)
+
+    # Average the correlation matrix
+    correlation_matrix /= len(dfs)
+    corr_df = pd.DataFrame(correlation_matrix, columns=df.columns, index=df.columns)
+    return corr_df
