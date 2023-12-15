@@ -200,3 +200,14 @@ def make_correlation_matrix(dfs):
     correlation_matrix /= len(dfs)
     corr_df = pd.DataFrame(correlation_matrix, columns=df.columns, index=df.columns)
     return corr_df
+
+def inter_structure_frequency_table(dfs, threshold = 5):
+    ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent but values represent the frequency of monosaccharides/atoms pairs that crossed a threshold distance across different PDB of the same molecule
+    # dfs : list of dataframes being tables returned by make_atom_contact_table() or make_monosaccharide_contact_table()
+    # threshold : maximal distance a pair can show to be counted as a contact
+
+    # Apply thresholding and create a new list of transformed DataFrames
+    transformed_dfs = [df.applymap(lambda x: 1 if x < threshold else 0) for df in dfs]
+    # Sum up the transformed DataFrames to create the final DataFrame
+    final_df = pd.DataFrame(sum(transformed_dfs))
+    return(final_df)
