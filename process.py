@@ -4,6 +4,52 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import re
 from collections import Counter
+import subprocess
+import json
+import shutil
+from urllib.parse import quote
+
+
+def get_glycoshape_IUPAC() :
+    #get the list of available glycans on glycoshape
+    curl_command = 'curl -X GET https://glycoshape.io/api/available_glycans'
+    x = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
+    parsed_dict = json.loads(x.stdout)
+    return(parsed_dict['glycan_list'])
+
+def download_from_glycoshape(IUPAC) :
+    #download pdb files given a IUPAC sequence that exists in the glycoshape database
+
+    outpath = IUPAC
+    IUPAC_name = quote(IUPAC)
+    os.makedirs(outpath, exist_ok=True)
+    for linktype in ['alpha','beta'] :
+        for i in range(0,500) :
+
+            output = linktype + '_' + str(i) +'.pdb'
+
+            # Construct the curl command with string formatting
+            curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
+            tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
+
+            try : 
+                # Use subprocess to run the command and capture the output
+                result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
+
+                if "404 Not Found" in result.stdout:
+                    return  # Stop the function
+
+                result = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
+                # Specify the current and new file names
+                current_file_name = output
+                new_file_name = IUPAC + current_file_name
+
+                # Rename the file
+                os.rename(current_file_name, new_file_name)
+                shutil.move(new_file_name, outpath)
+
+            except :
+                return 
 
 def extract_3D_coordinates(pdb_file):
     """
