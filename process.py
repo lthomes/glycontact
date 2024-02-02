@@ -3,12 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import re
+import os
 from collections import Counter
 import subprocess
 import json
 import shutil
 from urllib.parse import quote
-
+from glycowork.motif.annotate import *
+from glycowork.motif.graph import *
 
 def get_glycoshape_IUPAC() :
     #get the list of available glycans on glycoshape
@@ -26,7 +28,7 @@ def download_from_glycoshape(IUPAC) :
     for linktype in ['alpha','beta'] :
         for i in range(0,500) :
 
-            output = linktype + '_' + str(i) +'.pdb'
+            output = '_' + linktype + '_' + str(i) +'.pdb'
 
             # Construct the curl command with string formatting
             curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
@@ -572,7 +574,7 @@ def correct_dataframe(df):
 
   return df
 
-def annotation_pipeline(pdf_file,threshold =2.7) :
+def annotation_pipeline(pdb_file,threshold =2.7) :
   ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
   ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
 
