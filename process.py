@@ -588,3 +588,38 @@ def explore_threshold(pdb_file, threshold_list=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25
   if completed == False :
     print('None of these thresholds allows to correctly annotate your PDB file:' + str(threshold_list))
     return(pd.DataFrame())
+
+def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='default'):
+  #return the preferred partner of a given monosaccharide, except those closer than the threshold (which will be considered as covalent linkages)
+  #df must be a monosaccharide distance table correctly reanotated
+  #mode can be 'default' (check individual monosaccharides in glycan), 'monolink' (check monosaccharide-linkages in glycan), 'monosaccharide' (check monosaccharide types)
+  
+  # should the observed frequencies be normalized based on the occurence of each monosaccharide? Indeed, if GlcNAc is often close to Man, is it by choice, or because it is surrounded by so many Man that it has no other choice?
+  entities = df.columns.to_list()
+  preferred_partners = {}
+  preferred_partners_distances = []
+  for x in range(0,len(entities)):
+    if '(' not in monosaccharide :
+      current_mono = entities[x].split('_')[1].split('(')[0]
+    if '(' in monosaccharide :
+      current_mono = entities[x].split('_')[1]
+    if current_mono == monosaccharide :
+
+      distlist = df[entities[x]].to_list()
+      shortest_dist = max(distlist)
+      for d_index in range(0,len(distlist)) :
+        if distlist[d_index] != 0 and  distlist[d_index] >= threshold and distlist[d_index] < shortest_dist :
+          shortest_dist =  distlist[d_index]
+          closest_index = d_index
+
+      preferred_partners[entities[x]] = entities[closest_index]
+      preferred_partners_distances.append(distlist[closest_index])
+  print(np.mean(preferred_partners_distances))
+  if mode =='default':
+    return(preferred_partners)
+  if mode == 'monolink' :
+    monolink_dict = {x:preferred_partners[x].split('_')[1] for x in preferred_partners}
+    return(monolink_dict)
+  if mode =='monosaccharide' :
+    mono_dict = {x:preferred_partners[x].split('_')[1].split('(')[0] for x in preferred_partners}
+    return(mono_dict)
