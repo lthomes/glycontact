@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import re
+from collections import Counter
 
 def extract_3D_coordinates(pdb_file):
     """
