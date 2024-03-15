@@ -8,6 +8,7 @@ import imageio
 import os
 from scipy.cluster import hierarchy
 from collections import Counter
+from process import *
 
 
 def atom_contact_map(act, export='', size = 0.5) :
@@ -109,50 +110,3 @@ def show_correlation_dendrogram(corr_df, font_size = 1):
     plt.show()
 
 
-def show_monosaccharide_preference_structure(df,monosaccharide,threshold, mode='default'):
-  #df must be a monosaccharide distance table correctly reanotated
-  #mode can be 'default' (check individual monosaccharides in glycan), 'monolink' (check monosaccharide-linkages in glycan), 'monosaccharide' (check monosaccharide types)
-
-  res_dict = monosaccharide_preference_structure(df,monosaccharide,threshold,mode)
-
-  # Count occurrences of each value
-  value_counts = Counter(dict(Counter(res_dict.values()).most_common()))
-
-  # Plotting the histogram
-  plt.bar(value_counts.keys(), value_counts.values())
-  plt.xlabel('Values')
-  plt.ylabel('Frequency')
-  plt.title('Frequency of Encountered Values for ' + monosaccharide + ' above the distance threshold ' + str(threshold))
-  plt.show()
-
-def multi_glycan_monosaccharide_preference_structure(prefix,suffix,glycan_sequence,monosaccharide,threshold, mode='default'):
-  ### with multiple dicts accross multiple structures
-  # prefix : directory (ex: "PDB_format_ATOM2")
-  # suffix : 'alpha' or 'beta'
-  # glycan_sequence : IUPAC
-
-  dict_list = []
-
-  for x in range(0,100):
-    try :
-      df = extract_3D_coordinates(fp+prefix+"/"+glycan_sequence+"_cluster"+str(x)+"_"+ suffix + ".PDB.pdb")
-      annotated_df = annotate_pdb_data(df, mapping_dict)
-      dist_table = make_monosaccharide_contact_table(annotated_df,mode='distance')
-      data_dict = monosaccharide_preference_structure(dist_table,monosaccharide,threshold,mode)
-      dict_list.append(data_dict)
-    except :
-      pass
-
-  # Combine values from all dictionaries into a single list
-  all_values = [value for d in dict_list for value in d.values()]
-  print(all_values)
-
-  # Count occurrences of each value
-  value_counts = Counter(dict(Counter(all_values).most_common()))
-
-  # Plotting the histogram
-  plt.bar(value_counts.keys(), value_counts.values())
-  plt.xlabel('Values')
-  plt.ylabel('Frequency')
-  plt.title('Frequency of Encountered Values for ' + monosaccharide + ' above the distance threshold ' + str(threshold) + ' across all possible structures given')
-  plt.show()

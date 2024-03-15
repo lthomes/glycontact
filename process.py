@@ -98,7 +98,13 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
     distanceMap = pd.DataFrame()
     atom_list = coord_df['atom_name'].to_list()
     anum_list = coord_df['atom_number'].to_list()
-    mono_list = coord_df['monosaccharide'].to_list()
+
+    mono_nomenclature = 'IUPAC'
+    try :
+      mono_list = coord_df[mono_nomenclature].to_list()
+    except :
+      mono_nomenclature = 'monosaccharide'
+      mono_list = coord_df[mono_nomenclature].to_list()
     num_list = coord_df['residue_number'].to_list()
     x_list = coord_df['x'].to_list()
     y_list = coord_df['y'].to_list()
@@ -110,7 +116,7 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
         c_y = y_list[i]
         c_z = z_list[i]
         distanceList = []
-        for j in range(0,len(x_list)) : 
+        for j in range(0,len(x_list)) :
             if mode == 'exclusive':
                 if str(num_list[i]) != str(num_list[j]) :
                     n_x = x_list[j]
@@ -122,9 +128,9 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
                     absdist = abs(x_diff) + abs(y_diff) + abs(z_diff)
                     if absdist <= threshold:
                         distanceList.append(absdist)
-                    else : 
+                    else :
                         distanceList.append(threshold+1)
-                else : 
+                else :
                     distanceList.append(0)
             if mode=='inclusive' :
                 n_x = x_list[j]
@@ -136,8 +142,8 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
                 absdist = abs(x_diff) + abs(y_diff) + abs(z_diff)
                 if absdist <= threshold:
                     distanceList.append(absdist)
-                
-                else : 
+
+                else :
                     distanceList.append(threshold+1)
         distanceMap[current_pos] = distanceList
 
@@ -151,23 +157,29 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
 
     atom_list = coord_df['atom_name'].to_list()
     anum_list = coord_df['atom_number'].to_list()
-    mono_list = coord_df['monosaccharide'].to_list()
+
+    mono_nomenclature = 'IUPAC'
+    try :
+      mono_list = coord_df[mono_nomenclature].to_list()
+    except :
+      mono_nomenclature = 'monosaccharide'
+      mono_list = coord_df[mono_nomenclature].to_list()
     num_list = coord_df['residue_number'].to_list()
 
 
     for i in list(set(num_list)) :
         ndf = coord_df[coord_df['residue_number']==i]
-        current_pos = str(i) + '_' + ndf['monosaccharide'].to_list()[0]
+        current_pos = str(i) + '_' + ndf[mono_nomenclature].to_list()[0]
         distanceList = []
         distanceList2 = []
-        
+
         x_list = ndf['x'].to_list()
         y_list = ndf['y'].to_list()
         z_list = ndf['z'].to_list()
 
         for j in list(set(num_list)) :
             adverse_df = coord_df[coord_df['residue_number']==j]
-            adverse_pos = str(j) + '_' + adverse_df['monosaccharide'].to_list()[0]
+            adverse_pos = str(j) + '_' + adverse_df[mono_nomenclature].to_list()[0]
             added = False
             nx_list = adverse_df['x'].to_list()
             ny_list = adverse_df['y'].to_list()
@@ -194,7 +206,7 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
                         if absdist < distToAppend :
                             distToAppend = absdist
             if added == True  :
-                distanceList2.append(distToAppend)   
+                distanceList2.append(distToAppend)
             if added == False :
                 distanceList.append(1)
                 distanceList2.append(threshold+1)
@@ -203,9 +215,9 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
         distanceMap2[current_pos] = distanceList2
 
     if mode == 'binary' :
-        return(distanceMap)    
+        return(distanceMap)
     if mode == 'distance' :
-        return(distanceMap2)    
+        return(distanceMap2)
     if mode == 'both' :
         return([distanceMap,distanceMap2])
 
@@ -283,73 +295,50 @@ def inter_structure_frequency_table(dfs, threshold = 5):
     final_df = pd.DataFrame(sum(transformed_dfs))
     return(final_df)
 
-def extract_binary_interactions_from_PDB(df, threshold):
+def extract_binary_interactions_from_PDB(coordinates_df, threshold):
     """
-    Extract binary interactions between C1-2 atoms and oxygen atoms from a DataFrame obtained using extract_3D_coordinates.
+    Extract binary interactions between C1-2 atoms and oxygen atoms from a DataFrame.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing 3D coordinates obtained from extract_3D_coordinates.
+    - coordinates_df (pd.DataFrame): DataFrame obtained using extract_3D_coordinates.
     - threshold (float): Distance threshold for considering interactions.
 
     Returns:
-    - pd.DataFrame: DataFrame containing information about binary interactions.
+    - pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' representing interactions.
     """
+    coordinates_df =  extract_3D_coordinates(coordinates_df)
+    carbon_1_2_df = coordinates_df[(coordinates_df['atom_name'] == 'C1') | (coordinates_df['atom_name'] == 'C2')]
+    oxygen_df = coordinates_df[coordinates_df['element'] == 'O']
 
-    # Extract sub-DataFrames: one with only C1-2 atoms, the other with only oxygens
-    carbon_1_2_df = df[(df['atom_name'] == 'C1') | (df['atom_name'] == 'C2')]
-    oxygen_df = df[df['element'] == 'O']
+    c_dict = {f"{r}_{m}_{a}": [x, y, z] for r, m, a, x, y, z in carbon_1_2_df[['residue_number', 'monosaccharide', 'atom_name', 'x', 'y', 'z']].values}
+    o_dict = {f"{r}_{m}_{a}": [x, y, z] for r, m, a, x, y, z in oxygen_df[['residue_number', 'monosaccharide', 'atom_name', 'x', 'y', 'z']].values}
 
-    # Create dictionaries to store coordinates of C1-2 atoms and oxygen atoms
-    c_dict = {}
-    for x in range(len(carbon_1_2_df)):
-        key = f"{carbon_1_2_df['residue_number'].iloc[x]}_{carbon_1_2_df['monosaccharide'].iloc[x]}_{carbon_1_2_df['atom_name'].iloc[x]}"
-        c_dict[key] = [carbon_1_2_df['x'].iloc[x], carbon_1_2_df['y'].iloc[x], carbon_1_2_df['z'].iloc[x]]
-
-    o_dict = {}
-    for x in range(len(oxygen_df)):
-        key = f"{oxygen_df['residue_number'].iloc[x]}_{oxygen_df['monosaccharide'].iloc[x]}_{oxygen_df['atom_name'].iloc[x]}"
-        o_dict[key] = [oxygen_df['x'].iloc[x], oxygen_df['y'].iloc[x], oxygen_df['z'].iloc[x]]
-
-    # Lists to store results
     atom = []
     column = []
     value = []
 
-    # Iterate through C1-2 atoms and find closest oxygen atoms
-    for key in c_dict:
+    for c_key, c_coords in c_dict.items():
         smallest_distance = 1000
         closest_residue = ''
-        c_x, c_y, c_z = c_dict[key]
-        c_resnum = key.split('_')[0]
+        c_resnum = c_key.split('_')[0]
 
-        # Iterate through oxygen atoms
-        for okey in o_dict:
-            o_resnum = okey.split('_')[0]
+        for o_key, o_coords in o_dict.items():
+            o_resnum = o_key.split('_')[0]
 
-            # Check if the atoms belong to different residues
             if c_resnum != o_resnum:
-                delta_x = abs(c_x - o_dict[okey][0])
-                delta_y = abs(c_y - o_dict[okey][1])
-                delta_z = abs(c_z - o_dict[okey][2])
-                sum_dist = delta_x + delta_y + delta_z
+                sum_dist = np.sum(np.abs(np.array(c_coords) - np.array(o_coords)))
 
-                # Check if the current oxygen atom is closer than previous closest
                 if sum_dist < smallest_distance:
                     smallest_distance = sum_dist
-                    closest_residue = okey
+                    closest_residue = o_key
 
-        # Check if the smallest distance is below the threshold
         if smallest_distance < threshold:
-            print(f"{key} linked to {closest_residue} by length: {smallest_distance}")
-
-            # Append results to lists
-            atom.append(key)
+            atom.append(c_key)
             column.append(closest_residue)
             value.append(smallest_distance)
 
-    # Create a DataFrame from the results
-    resdf = pd.DataFrame({'Atom': atom, 'Column': column, 'Value': value})
-    return resdf
+    interactions_df = pd.DataFrame({'Atom': atom, 'Column': column, 'Value': value})
+    return interactions_df
 
 def get_glycan_sequence_from_path(pdb_file) :
   # Simply extract the glycan sequence from path and filename
@@ -502,17 +491,17 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
   filtered_differences = [pair for pair in differences_list if pair not in ignore_pairs]
 
   # Print or use the filtered_differences as needed
-  print("Filtered Differences:", filtered_differences)
+  #print("Filtered Differences:", filtered_differences)
   if filtered_differences == [] and  (len(glycontact_interactions) > len(glycowork_interactions)):
     return(True)
   else :
     if filtered_differences != [] :
-      print('Differences in annotations')
-      print(glycowork_interactions)
-      print(glycontact_interactions)
+      #print('Differences in annotations')
+      #print(glycowork_interactions)
+      #print(glycontact_interactions)
       return(False)
     if (len(glycontact_interactions) <= len(glycowork_interactions)) :
-      print("Missing monosaccharide in mapping_dict")
+      #print("Missing monosaccharide in mapping_dict")
       return(False)
 
 def check_reconstructed_interactions(interaction_dict) :
@@ -527,18 +516,18 @@ def check_reconstructed_interactions(interaction_dict) :
     G_dict.add_edges_from((node, neighbor) for neighbor in neighbors)
 
   # Draw and display the graphs
-  plt.figure(figsize=(10, 5))
+  #plt.figure(figsize=(10, 5))
 
-  plt.subplot(122)
-  nx.draw(G_dict, with_labels=True, font_weight='bold', node_color='lightcoral', arrowsize=20)
-  plt.title('Graph from Dictionary Interactions')
+  #plt.subplot(122)
+  #nx.draw(G_dict, with_labels=True, font_weight='bold', node_color='lightcoral', arrowsize=20)
+  #plt.title('Graph from Dictionary Interactions')
 
-  plt.show()
+  #plt.show()
 
   is_single_component = nx.is_connected(G_dict)
 
   if is_single_component:
-      print("The graph has only one connected component.")
+      #print("The graph has only one connected component.")
       return(True)
   else:
       print("The graph has more than one connected component.")
@@ -580,18 +569,18 @@ def annotation_pipeline(pdb_file,threshold =2.7) :
 
   ### Extract glycan sequence from filename
   glycan_sequence = get_glycan_sequence_from_path(pdb_file)
-  print(glycan_sequence)
+  #print(glycan_sequence)
 
   ### Using glycowork, extract valid fragments (fragment = monolink like GlcNAc(b1-4))
   valid_fragments = [x.split(')')[0]+')' for x in link_find(glycan_sequence)]
-  print(valid_fragments)
+  #print(valid_fragments)
 
   ### Detect binary connections (covalent linkages) using a maximal distance threshold and valid_fragments + build a mapping dictionnary
   res = extract_binary_interactions_from_PDB(pdb_file,threshold)
   mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res,valid_fragments)
-  print(mapping_dict)
-  print(len(mapping_dict))
-  print(len(interaction_dict))
+  #print(mapping_dict)
+  #print(len(mapping_dict))
+  #print(len(interaction_dict))
 
   ### Comparison of glycowork linkages and glycontact linkages to ensure correct extraction from PDB
   # Extract glycowork interactions:
@@ -600,7 +589,7 @@ def annotation_pipeline(pdb_file,threshold =2.7) :
 
   # Extract glycontact interactions:
   result_list = extract_binary_glycontact_interactions(interaction_dict)
-  print(result_list)
+  #print(result_list)
   # Compare glycowork IUPAC to graph versus glycontact PDB to graph to ensure glycontact detection of covalent linkages is correct (must return True)
   if glycowork_vs_glycontact_interactions(interactions_with_labels, result_list) == True :
     print("glycowork and glycontact agree on the list of covalent linkages")
@@ -671,3 +660,52 @@ def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='defau
   if mode =='monosaccharide' :
     mono_dict = {x:preferred_partners[x].split('_')[1].split('(')[0] for x in preferred_partners}
     return(mono_dict)
+  
+def show_monosaccharide_preference_structure(df,monosaccharide,threshold, mode='default'):
+  #df must be a monosaccharide distance table correctly reanotated
+  #mode can be 'default' (check individual monosaccharides in glycan), 'monolink' (check monosaccharide-linkages in glycan), 'monosaccharide' (check monosaccharide types)
+
+  res_dict = monosaccharide_preference_structure(df,monosaccharide,threshold,mode)
+
+  # Count occurrences of each value
+  value_counts = Counter(dict(Counter(res_dict.values()).most_common()))
+
+  # Plotting the histogram
+  plt.bar(value_counts.keys(), value_counts.values())
+  plt.xlabel('Values')
+  plt.ylabel('Frequency')
+  plt.title('Frequency of Encountered Values for ' + monosaccharide + ' above the distance threshold ' + str(threshold))
+  plt.show()
+
+def multi_glycan_monosaccharide_preference_structure(prefix,suffix,glycan_sequence,monosaccharide,threshold, mode='default'):
+  ### with multiple dicts accross multiple structures
+  # prefix : directory (ex: "PDB_format_ATOM2")
+  # suffix : 'alpha' or 'beta'
+  # glycan_sequence : IUPAC
+
+  dict_list = []
+
+  for x in range(0,100):
+    try :
+      print(prefix+"/"+glycan_sequence+"_cluster"+str(x)+"_"+ suffix + ".PDB.pdb")
+      pdb_file = prefix+"/"+glycan_sequence+"_cluster"+str(x)+"_"+ suffix + ".PDB.pdb"
+      annotated_df = explore_threshold(pdb_file)
+      dist_table = make_monosaccharide_contact_table(annotated_df,mode='distance')
+      data_dict = monosaccharide_preference_structure(dist_table,monosaccharide,threshold,mode)
+      dict_list.append(data_dict)
+    except :
+      pass
+
+  # Combine values from all dictionaries into a single list
+  all_values = [value for d in dict_list for value in d.values()]
+  print(all_values)
+
+  # Count occurrences of each value
+  value_counts = Counter(dict(Counter(all_values).most_common()))
+
+  # Plotting the histogram
+  plt.bar(value_counts.keys(), value_counts.values())
+  plt.xlabel('Values')
+  plt.ylabel('Frequency')
+  plt.title('Frequency of Encountered Values for ' + monosaccharide + ' above the distance threshold ' + str(threshold) + ' across all possible structures given')
+  plt.show()
