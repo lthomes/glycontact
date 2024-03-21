@@ -19,27 +19,27 @@ def get_glycoshape_IUPAC() :
     parsed_dict = json.loads(x.stdout)
     return(parsed_dict['glycan_list'])
 
-def download_from_glycoshape(IUPAC) :
-    #download pdb files given a IUPAC sequence that exists in the glycoshape database
-
+def download_from_glycoshape(IUPAC):
+    # Download pdb files given an IUPAC sequence that exists in the glycoshape database
     outpath = IUPAC
     IUPAC_name = quote(IUPAC)
     os.makedirs(outpath, exist_ok=True)
-    for linktype in ['alpha','beta'] :
-        for i in range(0,500) :
 
-            output = '_' + linktype + '_' + str(i) +'.pdb'
+    for linktype in ['alpha']:
+        for i in range(0, 500):
+
+            output = '_' + linktype + '_' + str(i) + '.pdb'
 
             # Construct the curl command with string formatting
             curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
             tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
 
-            try : 
+            try:
                 # Use subprocess to run the command and capture the output
                 result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
 
                 if "404 Not Found" in result.stdout:
-                    return  # Stop the function
+                    break  # Continue to the next iteration of the loop
 
                 result = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
                 # Specify the current and new file names
@@ -50,8 +50,44 @@ def download_from_glycoshape(IUPAC) :
                 os.rename(current_file_name, new_file_name)
                 shutil.move(new_file_name, outpath)
 
-            except :
-                return 
+            except Exception as e:
+                print(f"Error: {e}")
+
+    for linktype in ['beta']:
+        for i in range(0, 500):
+
+            output = '_' + linktype + '_' + str(i) + '.pdb'
+
+            # Construct the curl command with string formatting
+            curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
+            tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
+
+            try:
+                # Use subprocess to run the command and capture the output
+                result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
+
+                if "404 Not Found" in result.stdout:
+                    break  # Continue to the next iteration of the loop
+
+                result = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
+                # Specify the current and new file names
+                current_file_name = output
+                new_file_name = IUPAC + current_file_name
+
+                # Rename the file
+                os.rename(current_file_name, new_file_name)
+                shutil.move(new_file_name, outpath)
+
+            except Exception as e:
+                print(f"Error: {e}")
+
+
+
+def check_available_pdb(glycan) :
+    available_files = os.listdir(glycan)
+    return(available_files)
+
+
 
 def extract_3D_coordinates(pdb_file):
     """
@@ -342,7 +378,7 @@ def extract_binary_interactions_from_PDB(coordinates_df, threshold):
 
 def get_glycan_sequence_from_path(pdb_file) :
   # Simply extract the glycan sequence from path and filename
-  seq = pdb_file.split('/')[-1].split('_')[0]
+  seq = pdb_file.split('/')[0]
   return(seq)
 
 def extract_numbers(input_string):
@@ -362,7 +398,7 @@ def PDB_to_IUPAC(pdb_mono):
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
               'XYZ':'Xylf(b', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a', 'GCS':'GlcN(b', 'PA1':'GlcN(a',
-              'ROH':' '}
+              'ROH':' ', 'BGC':'Glc(b'}
   # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
   # GalNAc is recorded as "GLC" which is wrong: need for a checker function that counts the number of atoms - Glc = 21 (<25), GalNAc = 28 (>25)
   mono_core = map_dict[pdb_mono.split('_')[1]]
@@ -687,8 +723,8 @@ def multi_glycan_monosaccharide_preference_structure(prefix,suffix,glycan_sequen
 
   for x in range(0,100):
     try :
-      print(prefix+"/"+glycan_sequence+"_cluster"+str(x)+"_"+ suffix + ".PDB.pdb")
-      pdb_file = prefix+"/"+glycan_sequence+"_cluster"+str(x)+"_"+ suffix + ".PDB.pdb"
+      print(prefix+"/"+glycan_sequence+"_"+suffix+"_"+str(x)+ ".pdb")
+      pdb_file = prefix+"/"+glycan_sequence+"_"+suffix+"_"+str(x) + ".pdb"
       annotated_df = explore_threshold(pdb_file)
       dist_table = make_monosaccharide_contact_table(annotated_df,mode='distance')
       data_dict = monosaccharide_preference_structure(dist_table,monosaccharide,threshold,mode)
