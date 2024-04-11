@@ -7,6 +7,6 @@ Adaptation of Implose Protein Contact Maps to Glycans using GlycoShape 3D data
 - *glycontactNotebook.ipynb*: Notebook demonstrating how to use all the functions to process glycan data
 - *process_data.ipynb*: Notebook used to develop the package: testing PDB to IUPAC conversions, creating ways to analyze glycans...
 
-Folders named using to the IUPAC glycan nomenclature contains PDB files from https://glycoshape.org/
+PDB files are in the glycans_pdb folder. Folders are named using to the IUPAC glycan nomenclature and contain PDB files extracted from https://glycoshape.org/
 
 
