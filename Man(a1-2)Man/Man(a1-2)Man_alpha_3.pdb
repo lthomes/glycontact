@@ -1,0 +1,56 @@
+REMARK #################################################################
+REMARK #################################################################
+REMARK #################################################################
+REMARK    Restoring Protein Glycosylation with GlycoShape
+REMARK    Callum M Ives,*, Ojas Singh,*, Silvia D’Andrea, Carl A Fogarty, Aoife M Harbison, Akash Satheesan, Beatrice Tropea, Elisa Fadda
+REMARK    bioRxiv, 2023
+REMARK ################################################################
+REMARK ################################################################
+REMARK ################################################################
+ATOM      1  HO1 ROH X   1      27.171  24.979  28.082  1.00  0.00      SYST H  
+ATOM      2  O1  ROH X   1      27.263  24.198  27.531  1.00  0.00      SYST O  
+ATOM      3  C1  MAN X   2      26.526  24.826  26.463  1.00  0.00      SYST C  
+ATOM      4  H1  MAN X   2      25.474  24.916  26.735  1.00  0.00      SYST H  
+ATOM      5  C2  MAN X   2      26.496  23.820  25.252  1.00  0.00      SYST C  
+ATOM      6  H2  MAN X   2      26.250  22.826  25.628  1.00  0.00      SYST H  
+ATOM      7  C3  MAN X   2      27.938  23.607  24.686  1.00  0.00      SYST C  
+ATOM      8  H3  MAN X   2      28.484  23.116  25.490  1.00  0.00      SYST H  
+ATOM      9  C4  MAN X   2      28.575  25.016  24.298  1.00  0.00      SYST C  
+ATOM     10  H4  MAN X   2      28.030  25.531  23.506  1.00  0.00      SYST H  
+ATOM     11  C5  MAN X   2      28.663  25.890  25.502  1.00  0.00      SYST C  
+ATOM     12  H5  MAN X   2      29.278  25.448  26.287  1.00  0.00      SYST H  
+ATOM     13  C6  MAN X   2      29.178  27.314  25.244  1.00  0.00      SYST C  
+ATOM     14  H62 MAN X   2      30.001  27.297  24.529  1.00  0.00      SYST H  
+ATOM     15  H61 MAN X   2      28.465  27.918  24.685  1.00  0.00      SYST H  
+ATOM     16  O6  MAN X   2      29.621  27.994  26.442  1.00  0.00      SYST O  
+ATOM     17  H6O MAN X   2      29.672  28.940  26.280  1.00  0.00      SYST H  
+ATOM     18  O5  MAN X   2      27.263  26.055  26.046  1.00  0.00      SYST O  
+ATOM     19  O4  MAN X   2      29.964  24.838  23.858  1.00  0.00      SYST O  
+ATOM     20  H4O MAN X   2      30.009  24.906  22.901  1.00  0.00      SYST H  
+ATOM     21  O3  MAN X   2      27.760  22.731  23.480  1.00  0.00      SYST O  
+ATOM     22  H3O MAN X   2      27.426  23.194  22.709  1.00  0.00      SYST H  
+ATOM     23  O2  MAN X   2      25.597  24.221  24.197  1.00  0.00      SYST O  
+ATOM     24  C1  MAN X   3      24.450  23.226  23.989  1.00  0.00      SYST C  
+ATOM     25  H1  MAN X   3      24.786  22.203  23.823  1.00  0.00      SYST H  
+ATOM     26  C2  MAN X   3      23.766  23.442  22.619  1.00  0.00      SYST C  
+ATOM     27  H2  MAN X   3      24.482  23.402  21.799  1.00  0.00      SYST H  
+ATOM     28  C3  MAN X   3      23.187  24.851  22.489  1.00  0.00      SYST C  
+ATOM     29  H3  MAN X   3      24.066  25.494  22.435  1.00  0.00      SYST H  
+ATOM     30  C4  MAN X   3      22.274  25.281  23.692  1.00  0.00      SYST C  
+ATOM     31  H4  MAN X   3      21.310  24.784  23.591  1.00  0.00      SYST H  
+ATOM     32  C5  MAN X   3      22.770  24.866  25.071  1.00  0.00      SYST C  
+ATOM     33  H5  MAN X   3      23.519  25.610  25.343  1.00  0.00      SYST H  
+ATOM     34  C6  MAN X   3      21.709  24.881  26.221  1.00  0.00      SYST C  
+ATOM     35  H62 MAN X   3      22.112  24.663  27.210  1.00  0.00      SYST H  
+ATOM     36  H61 MAN X   3      21.308  25.890  26.314  1.00  0.00      SYST H  
+ATOM     37  O6  MAN X   3      20.687  23.940  25.880  1.00  0.00      SYST O  
+ATOM     38  H6O MAN X   3      19.791  24.209  26.093  1.00  0.00      SYST H  
+ATOM     39  O5  MAN X   3      23.456  23.506  25.021  1.00  0.00      SYST O  
+ATOM     40  O4  MAN X   3      22.050  26.719  23.672  1.00  0.00      SYST O  
+ATOM     41  H4O MAN X   3      21.471  26.857  22.920  1.00  0.00      SYST H  
+ATOM     42  O3  MAN X   3      22.520  24.959  21.289  1.00  0.00      SYST O  
+ATOM     43  H3O MAN X   3      23.136  25.306  20.640  1.00  0.00      SYST H  
+ATOM     44  O2  MAN X   3      22.661  22.434  22.280  1.00  0.00      SYST O  
+ATOM     45  H2O MAN X   3      22.424  22.554  21.357  1.00  0.00      SYST H  
+TER      46      MAN X   3                                                       
+END   

@@ -103,10 +103,21 @@ def show_correlation_dendrogram(corr_df, font_size = 1):
                                     leaf_rotation=90,
                                     leaf_font_size=8,ax=ax
                                     )
+    for d in dendrogram :
+        print(d + str(dendrogram[d]))
+    monolist = dendrogram['ivl']
+    clustlist = dendrogram['leaves_color_list']
+    uniclustlist =list(set(clustlist))
+    res_dict = {}
+    for c in uniclustlist :
+        res_dict[c] = []
+    for x in range(0,len(monolist)):
+        res_dict[clustlist[x]].append(monolist[x])
     ax.tick_params(axis='x', which='major', labelsize=font_size)
     plt.title('Hierarchical Clustering Dendrogram')
     plt.xlabel('Residue')
     plt.ylabel('Distance')
     plt.show()
+    return(res_dict)
 
 

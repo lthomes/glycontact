@@ -1,0 +1,149 @@
+REMARK #################################################################
+REMARK #################################################################
+REMARK #################################################################
+REMARK    Restoring Protein Glycosylation with GlycoShape
+REMARK    Callum M Ives,*, Ojas Singh,*, Silvia D’Andrea, Carl A Fogarty, Aoife M Harbison, Akash Satheesan, Beatrice Tropea, Elisa Fadda
+REMARK    bioRxiv, 2023
+REMARK ################################################################
+REMARK ################################################################
+REMARK ################################################################
+HEADER    
+TITLE     MDANALYSIS RIBMES FROM 0, STEP 1: Created by PDBWriter
+CRYST1    1.000    1.000    1.000  90.00  90.00  90.00 P 1           1
+REMARK     285 UNITARY VALUES FOR THE UNIT CELL AUTOMATICALLY SET
+REMARK     285 BY MDANALYSIS PDBWRITER BECAUSE UNIT CELL INFORMATION
+REMARK     285 WAS MISSING.
+REMARK     285 PROTEIN DATA BANK CONVENTIONS REQUIRE THAT
+REMARK     285 CRYST1 RECORD IS INCLUDED, BUT THE VALUES ON
+REMARK     285 THIS RECORD ARE MEANINGLESS.
+MODEL        1
+ATOM      1  HO1 ROH A   1       8.640   5.829  -1.562  0.00  1.00      A    H
+ATOM      2  O1  ROH A   1       9.050   6.318  -2.279  0.00  1.00      A    O
+ATOM      3  C1  MAN A   2       8.088   6.196  -3.330  0.00  1.00      A    C
+ATOM      4  H1  MAN A   2       7.929   5.150  -3.591  0.00  1.00      A    H
+ATOM      5  C2  MAN A   2       8.651   6.961  -4.562  0.00  1.00      A    C
+ATOM      6  H2  MAN A   2       9.671   6.630  -4.758  0.00  1.00      A    H
+ATOM      7  C3  MAN A   2       8.651   8.484  -4.301  0.00  1.00      A    C
+ATOM      8  H3  MAN A   2       9.347   8.696  -3.487  0.00  1.00      A    H
+ATOM      9  C4  MAN A   2       7.246   8.994  -3.898  0.00  1.00      A    C
+ATOM     10  H4  MAN A   2       6.549   8.857  -4.726  0.00  1.00      A    H
+ATOM     11  C5  MAN A   2       6.732   8.244  -2.647  0.00  1.00      A    C
+ATOM     12  H5  MAN A   2       7.376   8.504  -1.805  0.00  1.00      A    H
+ATOM     13  C6  MAN A   2       5.280   8.629  -2.292  0.00  1.00      A    C
+ATOM     14  H62 MAN A   2       5.154   9.711  -2.315  0.00  1.00      A    H
+ATOM     15  H61 MAN A   2       4.590   8.195  -3.018  0.00  1.00      A    H
+ATOM     16  O6  MAN A   2       4.931   8.166  -0.970  0.00  1.00      A    O
+ATOM     17  H6O MAN A   2       5.377   8.700  -0.308  0.00  1.00      A    H
+ATOM     18  O5  MAN A   2       6.818   6.764  -2.856  0.00  1.00      A    O
+ATOM     19  O4  MAN A   2       7.334  10.411  -3.590  0.00  1.00      A    O
+ATOM     20  H4O MAN A   2       7.753  10.843  -4.346  0.00  1.00      A    H
+ATOM     21  O3  MAN A   2       9.137   9.184  -5.488  0.00  1.00      A    O
+ATOM     22  H3O MAN A   2      10.092   9.079  -5.559  0.00  1.00      A    H
+ATOM     23  O2  MAN A   2       7.848   6.664  -5.743  0.00  1.00      A    O
+ATOM     24  H2O MAN A   2       8.080   7.290  -6.439  0.00  1.00      A    H
+ENDMDL
+MODEL        2
+ATOM      1  HO1 ROH A   1       8.640   5.829  -1.562  0.00  1.00      A    H
+ATOM      2  O1  ROH A   1       9.050   6.318  -2.279  0.00  1.00      A    O
+ATOM      3  C1  MAN A   2       8.088   6.196  -3.330  0.00  1.00      A    C
+ATOM      4  H1  MAN A   2       7.929   5.150  -3.591  0.00  1.00      A    H
+ATOM      5  C2  MAN A   2       8.651   6.961  -4.562  0.00  1.00      A    C
+ATOM      6  H2  MAN A   2       9.671   6.630  -4.758  0.00  1.00      A    H
+ATOM      7  C3  MAN A   2       8.651   8.484  -4.301  0.00  1.00      A    C
+ATOM      8  H3  MAN A   2       9.347   8.696  -3.487  0.00  1.00      A    H
+ATOM      9  C4  MAN A   2       7.246   8.994  -3.898  0.00  1.00      A    C
+ATOM     10  H4  MAN A   2       6.549   8.857  -4.726  0.00  1.00      A    H
+ATOM     11  C5  MAN A   2       6.732   8.244  -2.647  0.00  1.00      A    C
+ATOM     12  H5  MAN A   2       7.376   8.504  -1.805  0.00  1.00      A    H
+ATOM     13  C6  MAN A   2       5.280   8.629  -2.292  0.00  1.00      A    C
+ATOM     14  H62 MAN A   2       5.154   9.711  -2.315  0.00  1.00      A    H
+ATOM     15  H61 MAN A   2       4.590   8.195  -3.018  0.00  1.00      A    H
+ATOM     16  O6  MAN A   2       4.931   8.166  -0.970  0.00  1.00      A    O
+ATOM     17  H6O MAN A   2       5.377   8.700  -0.308  0.00  1.00      A    H
+ATOM     18  O5  MAN A   2       6.818   6.764  -2.856  0.00  1.00      A    O
+ATOM     19  O4  MAN A   2       7.334  10.411  -3.590  0.00  1.00      A    O
+ATOM     20  H4O MAN A   2       7.753  10.843  -4.346  0.00  1.00      A    H
+ATOM     21  O3  MAN A   2       9.137   9.184  -5.488  0.00  1.00      A    O
+ATOM     22  H3O MAN A   2      10.092   9.079  -5.559  0.00  1.00      A    H
+ATOM     23  O2  MAN A   2       7.848   6.664  -5.743  0.00  1.00      A    O
+ATOM     24  H2O MAN A   2       8.080   7.290  -6.439  0.00  1.00      A    H
+ENDMDL
+MODEL        3
+ATOM      1  HO1 ROH A   1       8.640   5.829  -1.562  0.00  1.00      A    H
+ATOM      2  O1  ROH A   1       9.050   6.318  -2.279  0.00  1.00      A    O
+ATOM      3  C1  MAN A   2       8.088   6.196  -3.330  0.00  1.00      A    C
+ATOM      4  H1  MAN A   2       7.929   5.150  -3.591  0.00  1.00      A    H
+ATOM      5  C2  MAN A   2       8.651   6.961  -4.562  0.00  1.00      A    C
+ATOM      6  H2  MAN A   2       9.671   6.630  -4.758  0.00  1.00      A    H
+ATOM      7  C3  MAN A   2       8.651   8.484  -4.301  0.00  1.00      A    C
+ATOM      8  H3  MAN A   2       9.347   8.696  -3.487  0.00  1.00      A    H
+ATOM      9  C4  MAN A   2       7.246   8.994  -3.898  0.00  1.00      A    C
+ATOM     10  H4  MAN A   2       6.549   8.857  -4.726  0.00  1.00      A    H
+ATOM     11  C5  MAN A   2       6.732   8.244  -2.647  0.00  1.00      A    C
+ATOM     12  H5  MAN A   2       7.376   8.504  -1.805  0.00  1.00      A    H
+ATOM     13  C6  MAN A   2       5.280   8.629  -2.292  0.00  1.00      A    C
+ATOM     14  H62 MAN A   2       5.154   9.711  -2.315  0.00  1.00      A    H
+ATOM     15  H61 MAN A   2       4.590   8.195  -3.018  0.00  1.00      A    H
+ATOM     16  O6  MAN A   2       4.931   8.166  -0.970  0.00  1.00      A    O
+ATOM     17  H6O MAN A   2       5.377   8.700  -0.308  0.00  1.00      A    H
+ATOM     18  O5  MAN A   2       6.818   6.764  -2.856  0.00  1.00      A    O
+ATOM     19  O4  MAN A   2       7.334  10.411  -3.590  0.00  1.00      A    O
+ATOM     20  H4O MAN A   2       7.753  10.843  -4.346  0.00  1.00      A    H
+ATOM     21  O3  MAN A   2       9.137   9.184  -5.488  0.00  1.00      A    O
+ATOM     22  H3O MAN A   2      10.092   9.079  -5.559  0.00  1.00      A    H
+ATOM     23  O2  MAN A   2       7.848   6.664  -5.743  0.00  1.00      A    O
+ATOM     24  H2O MAN A   2       8.080   7.290  -6.439  0.00  1.00      A    H
+ENDMDL
+MODEL        4
+ATOM      1  HO1 ROH A   1       8.640   5.829  -1.562  0.00  1.00      A    H
+ATOM      2  O1  ROH A   1       9.050   6.318  -2.279  0.00  1.00      A    O
+ATOM      3  C1  MAN A   2       8.088   6.196  -3.330  0.00  1.00      A    C
+ATOM      4  H1  MAN A   2       7.929   5.150  -3.591  0.00  1.00      A    H
+ATOM      5  C2  MAN A   2       8.651   6.961  -4.562  0.00  1.00      A    C
+ATOM      6  H2  MAN A   2       9.671   6.630  -4.758  0.00  1.00      A    H
+ATOM      7  C3  MAN A   2       8.651   8.484  -4.301  0.00  1.00      A    C
+ATOM      8  H3  MAN A   2       9.347   8.696  -3.487  0.00  1.00      A    H
+ATOM      9  C4  MAN A   2       7.246   8.994  -3.898  0.00  1.00      A    C
+ATOM     10  H4  MAN A   2       6.549   8.857  -4.726  0.00  1.00      A    H
+ATOM     11  C5  MAN A   2       6.732   8.244  -2.647  0.00  1.00      A    C
+ATOM     12  H5  MAN A   2       7.376   8.504  -1.805  0.00  1.00      A    H
+ATOM     13  C6  MAN A   2       5.280   8.629  -2.292  0.00  1.00      A    C
+ATOM     14  H62 MAN A   2       5.154   9.711  -2.315  0.00  1.00      A    H
+ATOM     15  H61 MAN A   2       4.590   8.195  -3.018  0.00  1.00      A    H
+ATOM     16  O6  MAN A   2       4.931   8.166  -0.970  0.00  1.00      A    O
+ATOM     17  H6O MAN A   2       5.377   8.700  -0.308  0.00  1.00      A    H
+ATOM     18  O5  MAN A   2       6.818   6.764  -2.856  0.00  1.00      A    O
+ATOM     19  O4  MAN A   2       7.334  10.411  -3.590  0.00  1.00      A    O
+ATOM     20  H4O MAN A   2       7.753  10.843  -4.346  0.00  1.00      A    H
+ATOM     21  O3  MAN A   2       9.137   9.184  -5.488  0.00  1.00      A    O
+ATOM     22  H3O MAN A   2      10.092   9.079  -5.559  0.00  1.00      A    H
+ATOM     23  O2  MAN A   2       7.848   6.664  -5.743  0.00  1.00      A    O
+ATOM     24  H2O MAN A   2       8.080   7.290  -6.439  0.00  1.00      A    H
+ENDMDL
+MODEL        5
+ATOM      1  HO1 ROH A   1       8.640   5.829  -1.562  0.00  1.00      A    H
+ATOM      2  O1  ROH A   1       9.050   6.318  -2.279  0.00  1.00      A    O
+ATOM      3  C1  MAN A   2       8.088   6.196  -3.330  0.00  1.00      A    C
+ATOM      4  H1  MAN A   2       7.929   5.150  -3.591  0.00  1.00      A    H
+ATOM      5  C2  MAN A   2       8.651   6.961  -4.562  0.00  1.00      A    C
+ATOM      6  H2  MAN A   2       9.671   6.630  -4.758  0.00  1.00      A    H
+ATOM      7  C3  MAN A   2       8.651   8.484  -4.301  0.00  1.00      A    C
+ATOM      8  H3  MAN A   2       9.347   8.696  -3.487  0.00  1.00      A    H
+ATOM      9  C4  MAN A   2       7.246   8.994  -3.898  0.00  1.00      A    C
+ATOM     10  H4  MAN A   2       6.549   8.857  -4.726  0.00  1.00      A    H
+ATOM     11  C5  MAN A   2       6.732   8.244  -2.647  0.00  1.00      A    C
+ATOM     12  H5  MAN A   2       7.376   8.504  -1.805  0.00  1.00      A    H
+ATOM     13  C6  MAN A   2       5.280   8.629  -2.292  0.00  1.00      A    C
+ATOM     14  H62 MAN A   2       5.154   9.711  -2.315  0.00  1.00      A    H
+ATOM     15  H61 MAN A   2       4.590   8.195  -3.018  0.00  1.00      A    H
+ATOM     16  O6  MAN A   2       4.931   8.166  -0.970  0.00  1.00      A    O
+ATOM     17  H6O MAN A   2       5.377   8.700  -0.308  0.00  1.00      A    H
+ATOM     18  O5  MAN A   2       6.818   6.764  -2.856  0.00  1.00      A    O
+ATOM     19  O4  MAN A   2       7.334  10.411  -3.590  0.00  1.00      A    O
+ATOM     20  H4O MAN A   2       7.753  10.843  -4.346  0.00  1.00      A    H
+ATOM     21  O3  MAN A   2       9.137   9.184  -5.488  0.00  1.00      A    O
+ATOM     22  H3O MAN A   2      10.092   9.079  -5.559  0.00  1.00      A    H
+ATOM     23  O2  MAN A   2       7.848   6.664  -5.743  0.00  1.00      A    O
+ATOM     24  H2O MAN A   2       8.080   7.290  -6.439  0.00  1.00      A    H
+ENDMDL
+END

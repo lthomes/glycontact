@@ -1,0 +1,104 @@
+REMARK #################################################################
+REMARK #################################################################
+REMARK #################################################################
+REMARK    Restoring Protein Glycosylation with GlycoShape
+REMARK    Callum M Ives,*, Ojas Singh,*, Silvia D’Andrea, Carl A Fogarty, Aoife M Harbison, Akash Satheesan, Beatrice Tropea, Elisa Fadda
+REMARK    bioRxiv, 2023
+REMARK ################################################################
+REMARK ################################################################
+REMARK ################################################################
+ATOM      1  HO1 ROH X   1      25.957  21.146  19.240  1.00  0.00      SYST H  
+ATOM      2  O1  ROH X   1      25.534  21.672  19.922  1.00  0.00      SYST O  
+ATOM      3  C1  A2G X   2      24.189  21.764  19.386  1.00  0.00      SYST C  
+ATOM      4  H1  A2G X   2      24.404  22.055  18.359  1.00  0.00      SYST H  
+ATOM      5  C2  A2G X   2      23.350  22.850  20.116  1.00  0.00      SYST C  
+ATOM      6  H2  A2G X   2      22.428  22.822  19.535  1.00  0.00      SYST H  
+ATOM      7  N2  A2G X   2      24.035  24.200  19.947  1.00  0.00      SYST N  
+ATOM      8  H2N A2G X   2      25.031  24.283  20.089  1.00  0.00      SYST H  
+ATOM      9  C2N A2G X   2      23.411  25.221  19.401  1.00  0.00      SYST C  
+ATOM     10  CME A2G X   2      24.251  26.410  18.918  1.00  0.00      SYST C  
+ATOM     11  H3M A2G X   2      23.580  27.081  18.383  1.00  0.00      SYST H  
+ATOM     12  H2M A2G X   2      24.605  26.957  19.792  1.00  0.00      SYST H  
+ATOM     13  H1M A2G X   2      25.106  26.142  18.296  1.00  0.00      SYST H  
+ATOM     14  O2N A2G X   2      22.179  25.220  19.370  1.00  0.00      SYST O  
+ATOM     15  C3  A2G X   2      22.952  22.505  21.588  1.00  0.00      SYST C  
+ATOM     16  H3  A2G X   2      23.909  22.481  22.106  1.00  0.00      SYST H  
+ATOM     17  C4  A2G X   2      22.373  21.089  21.702  1.00  0.00      SYST C  
+ATOM     18  H4  A2G X   2      22.390  20.777  22.746  1.00  0.00      SYST H  
+ATOM     19  C5  A2G X   2      23.328  20.066  20.985  1.00  0.00      SYST C  
+ATOM     20  H5  A2G X   2      24.308  20.071  21.460  1.00  0.00      SYST H  
+ATOM     21  C6  A2G X   2      22.901  18.617  21.056  1.00  0.00      SYST C  
+ATOM     22  H62 A2G X   2      21.872  18.546  20.698  1.00  0.00      SYST H  
+ATOM     23  H61 A2G X   2      23.473  17.876  20.497  1.00  0.00      SYST H  
+ATOM     24  O6  A2G X   2      22.936  18.289  22.440  1.00  0.00      SYST O  
+ATOM     25  H6O A2G X   2      23.093  17.351  22.566  1.00  0.00      SYST H  
+ATOM     26  O5  A2G X   2      23.499  20.496  19.552  1.00  0.00      SYST O  
+ATOM     27  O4  A2G X   2      21.077  21.023  21.065  1.00  0.00      SYST O  
+ATOM     28  H4O A2G X   2      20.411  21.365  21.665  1.00  0.00      SYST H  
+ATOM     29  O3  A2G X   2      22.024  23.442  22.281  1.00  0.00      SYST O  
+ATOM     30  C1  A2G X   3      22.659  24.468  23.159  1.00  0.00      SYST C  
+ATOM     31  H1  A2G X   3      23.725  24.270  23.271  1.00  0.00      SYST H  
+ATOM     32  C2  A2G X   3      22.058  24.377  24.630  1.00  0.00      SYST C  
+ATOM     33  H2  A2G X   3      22.816  24.878  25.232  1.00  0.00      SYST H  
+ATOM     34  N2  A2G X   3      21.957  22.990  25.086  1.00  0.00      SYST N  
+ATOM     35  H2N A2G X   3      21.089  22.511  24.894  1.00  0.00      SYST H  
+ATOM     36  C2N A2G X   3      23.009  22.257  25.400  1.00  0.00      SYST C  
+ATOM     37  CME A2G X   3      22.754  20.718  25.700  1.00  0.00      SYST C  
+ATOM     38  H3M A2G X   3      23.663  20.148  25.889  1.00  0.00      SYST H  
+ATOM     39  H2M A2G X   3      22.126  20.678  26.589  1.00  0.00      SYST H  
+ATOM     40  H1M A2G X   3      22.237  20.274  24.848  1.00  0.00      SYST H  
+ATOM     41  O2N A2G X   3      24.130  22.815  25.616  1.00  0.00      SYST O  
+ATOM     42  C3  A2G X   3      20.693  25.125  24.845  1.00  0.00      SYST C  
+ATOM     43  H3  A2G X   3      19.868  24.519  24.472  1.00  0.00      SYST H  
+ATOM     44  O3  A2G X   3      20.519  25.282  26.277  1.00  0.00      SYST O  
+ATOM     45  H3O A2G X   3      20.795  26.156  26.563  1.00  0.00      SYST H  
+ATOM     46  C4  A2G X   3      20.638  26.513  24.171  1.00  0.00      SYST C  
+ATOM     47  H4  A2G X   3      19.673  27.001  24.307  1.00  0.00      SYST H  
+ATOM     48  O4  A2G X   3      21.631  27.430  24.740  1.00  0.00      SYST O  
+ATOM     49  H4O A2G X   3      21.670  28.263  24.264  1.00  0.00      SYST H  
+ATOM     50  C5  A2G X   3      20.992  26.289  22.652  1.00  0.00      SYST C  
+ATOM     51  H5  A2G X   3      20.414  25.518  22.144  1.00  0.00      SYST H  
+ATOM     52  O5  A2G X   3      22.437  25.818  22.511  1.00  0.00      SYST O  
+ATOM     53  C6  A2G X   3      20.806  27.569  21.829  1.00  0.00      SYST C  
+ATOM     54  H62 A2G X   3      21.539  28.359  21.985  1.00  0.00      SYST H  
+ATOM     55  H61 A2G X   3      20.988  27.170  20.830  1.00  0.00      SYST H  
+ATOM     56  O6  A2G X   3      19.422  28.118  22.016  1.00  0.00      SYST O  
+ATOM     57  C2  SIA X   4      18.342  27.270  21.510  1.00  0.00      SYST C  
+ATOM     58  C1  SIA X   4      18.548  27.073  19.927  1.00  0.00      SYST C  
+ATOM     59  O1A SIA X   4      18.423  25.931  19.381  1.00  0.00      SYST O  
+ATOM     60  O1B SIA X   4      18.921  28.075  19.284  1.00  0.00      SYST O  
+ATOM     61  C3  SIA X   4      17.053  28.140  21.772  1.00  0.00      SYST C  
+ATOM     62  H3E SIA X   4      17.055  29.095  21.247  1.00  0.00      SYST H  
+ATOM     63  H3A SIA X   4      17.041  28.483  22.807  1.00  0.00      SYST H  
+ATOM     64  C4  SIA X   4      15.784  27.350  21.465  1.00  0.00      SYST C  
+ATOM     65  H4  SIA X   4      15.566  27.259  20.400  1.00  0.00      SYST H  
+ATOM     66  C5  SIA X   4      15.766  25.857  22.096  1.00  0.00      SYST C  
+ATOM     67  H5  SIA X   4      15.378  25.993  23.106  1.00  0.00      SYST H  
+ATOM     68  C6  SIA X   4      17.178  25.203  22.019  1.00  0.00      SYST C  
+ATOM     69  H6  SIA X   4      17.406  24.800  21.032  1.00  0.00      SYST H  
+ATOM     70  C7  SIA X   4      17.215  23.945  22.988  1.00  0.00      SYST C  
+ATOM     71  H7  SIA X   4      16.343  23.300  22.877  1.00  0.00      SYST H  
+ATOM     72  C8  SIA X   4      18.478  23.005  22.762  1.00  0.00      SYST C  
+ATOM     73  H8  SIA X   4      19.338  23.676  22.748  1.00  0.00      SYST H  
+ATOM     74  C9  SIA X   4      18.733  21.940  23.854  1.00  0.00      SYST C  
+ATOM     75  H9S SIA X   4      18.702  22.388  24.848  1.00  0.00      SYST H  
+ATOM     76  H9R SIA X   4      17.940  21.194  23.802  1.00  0.00      SYST H  
+ATOM     77  O9  SIA X   4      19.927  21.191  23.711  1.00  0.00      SYST O  
+ATOM     78  H9O SIA X   4      20.084  20.729  24.537  1.00  0.00      SYST H  
+ATOM     79  O8  SIA X   4      18.508  22.376  21.484  1.00  0.00      SYST O  
+ATOM     80  H8O SIA X   4      19.061  22.893  20.892  1.00  0.00      SYST H  
+ATOM     81  O7  SIA X   4      17.231  24.515  24.370  1.00  0.00      SYST O  
+ATOM     82  H7O SIA X   4      17.622  25.391  24.391  1.00  0.00      SYST H  
+ATOM     83  O6  SIA X   4      18.223  26.119  22.334  1.00  0.00      SYST O  
+ATOM     84  N5  SIA X   4      14.829  25.101  21.280  1.00  0.00      SYST N  
+ATOM     85  H5N SIA X   4      15.262  24.625  20.501  1.00  0.00      SYST H  
+ATOM     86  C5N SIA X   4      13.571  24.894  21.568  1.00  0.00      SYST C  
+ATOM     87  CME SIA X   4      12.833  23.837  20.683  1.00  0.00      SYST C  
+ATOM     88  H3M SIA X   4      13.318  22.862  20.628  1.00  0.00      SYST H  
+ATOM     89  H2M SIA X   4      12.691  24.226  19.674  1.00  0.00      SYST H  
+ATOM     90  H1M SIA X   4      11.863  23.567  21.102  1.00  0.00      SYST H  
+ATOM     91  O5N SIA X   4      12.984  25.468  22.509  1.00  0.00      SYST O  
+ATOM     92  O4  SIA X   4      14.664  28.092  21.916  1.00  0.00      SYST O  
+ATOM     93  H4O SIA X   4      14.807  28.301  22.841  1.00  0.00      SYST H  
+TER      94      SIA X   4                                                       
+END   
