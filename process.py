@@ -183,6 +183,7 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
                     distanceList.append(threshold+1)
         distanceMap[current_pos] = distanceList
 
+    distanceMap.index = distanceMap.columns
     return(distanceMap)
 
 def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary') :
@@ -249,6 +250,9 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
 
         distanceMap[current_pos] = distanceList
         distanceMap2[current_pos] = distanceList2
+
+    distanceMap.index = distanceMap.columns
+    distanceMap2.index = distanceMap2.columns
 
     if mode == 'binary' :
         return(distanceMap)
@@ -342,7 +346,7 @@ def extract_binary_interactions_from_PDB(coordinates_df, threshold):
     Returns:
     - pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' representing interactions.
     """
-    coordinates_df =  correct_dataframe(extract_3D_coordinates(pdb_file))
+    coordinates_df =  correct_dataframe(extract_3D_coordinates(coordinates_df))
     carbon_1_2_df = coordinates_df[(coordinates_df['atom_name'] == 'C1') | (coordinates_df['atom_name'] == 'C2')]
     oxygen_df = coordinates_df[coordinates_df['element'] == 'O']
 
