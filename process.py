@@ -402,8 +402,8 @@ def PDB_to_IUPAC(pdb_mono):
               'GLC':'Glc(a', 'IDR':'IdoA(a', 'RAM':'Rha(a', 'RM4':'Rha(b', 'XXR':'dRha(a',
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
               'XYZ':'Xylf(b', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
-              'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a', 'GCS':'GlcN(b', 'PA1':'GlcN(a',
-              'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a'}
+              'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','4YS':'GlcNS(a', 'UYS':'GlcNS(a', 'GCS':'GlcN(b', 
+              'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose'}
   # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
   # GalNAc is recorded as "GLC" which is wrong: need for a checker function that counts the number of atoms - Glc = 21 (<25), GalNAc = 28 (>25)
   mono_core = map_dict[pdb_mono.split('_')[1]]
