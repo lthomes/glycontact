@@ -7,6 +7,8 @@ import os
 from collections import Counter
 import subprocess
 import json
+import requests
+import json
 import shutil
 from urllib.parse import quote
 from glycowork.motif.annotate import *
@@ -759,3 +761,59 @@ def multi_glycan_monosaccharide_preference_structure(prefix,suffix,glycan_sequen
   plt.ylabel('Frequency')
   plt.title('Frequency of Encountered Values for ' + monosaccharide + ' above the distance threshold ' + str(threshold) + ' across all possible structures given')
   plt.show()
+
+def get_all_clusters_frequency():
+  ### Extract all glycan cluster frequencies from glycoshape and returns a dict
+    
+  # Send a GET request to the URL
+  response = requests.get("https://glycoshape.org/database/GLYCOSHAPE.json")
+
+  # Initialize an empty dictionary to store the data
+  data_dict = {}
+
+  # Check if the request was successful
+  if response.status_code == 200:
+      # Parse the JSON data
+      data = response.json()
+
+      # Extract the IUPAC sequence and cluster values
+      for key, value in data.items():
+          iupac_sequence = value["iupac"]
+          clusters = [value["clusters"][key] for key in value["clusters"]]
+          data_dict[iupac_sequence] = clusters
+  else:
+      print("Failed to retrieve data from the URL.")
+
+  return(data_dict)
+
+def get_glycan_clusters_frequency(glycan):
+  # Extract cluster frequencies for a given glycan
+  all_frequencies = get_all_clusters_frequency()
+  return(all_frequencies[glycan])
+
+def glycan_cluster_pattern(threshold = 70) :
+    ### Parse all clusters of all glycans on glycoshape. 
+    ### Returns glycans with one major cluster AND glycans with many minor clusters
+    ### Classification is performed based on a proportion threshold (default = 70)
+    # threshold: proportion that the main cluster must have to be considered as a major cluster
+    # If the proportion of the main cluster is lower, the current glycan is assumed to be represented by multiple structural clusters
+    
+    all_frequencies = get_all_clusters_frequency()
+
+    glycans_with_major_cluster = []
+    glycans_without_major_cluster = []
+
+    for key in all_frequencies :
+        try :
+            nb_clust = len(all_frequencies[key])
+            if float(all_frequencies[key][0]) >= threshold:
+                glycans_with_major_cluster.append(key)
+            else :
+                glycans_without_major_cluster.append(key)
+        except:
+            pass
+    
+    print("Number of glycans with one major cluster: " + str(len(glycans_with_major_cluster)))
+    print("Number of glycans without a major cluster: " + str(len(glycans_without_major_cluster)))
+
+    return(glycans_with_major_cluster,glycans_without_major_cluster)
