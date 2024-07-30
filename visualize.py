@@ -120,4 +120,33 @@ def show_correlation_dendrogram(corr_df, font_size = 1):
     plt.show()
     return(res_dict)
 
+def plot_monosaccharide_unstability(variability_table, format='png'):
+    # plot monolink variability for all clusters of a given glycan
+    # possible formats: png, pdf
+    residue_overall_stability = {}
+    for c in variability_table.columns.to_list():
+        residue_overall_stability[c] = sum(variability_table[c].to_list())
 
+    sorted_residue_overall_stability = sorted(residue_overall_stability.items(), key=lambda x:x[1])
+    print(sorted_residue_overall_stability)
+    labels, values = zip(*sorted_residue_overall_stability)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Créer le graphique
+    plt.bar(labels, values)
+    plt.xlabel('Monosaccharides')
+    plt.ylabel('Variability score')
+    plt.xticks(rotation=90)
+
+    fig.subplots_adjust(bottom=0.25)
+
+    # Save the plot as PNG
+    if format == 'png' :
+        fig.savefig(g+'_instabilities.png')
+
+    # Save the plot as PDF
+    if format == 'pdf' :
+        fig.savefig(g+'_instabilities.pdf')
+        
+    plt.show()
