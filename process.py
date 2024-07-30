@@ -13,6 +13,8 @@ import shutil
 from urllib.parse import quote
 from glycowork.motif.annotate import *
 from glycowork.motif.graph import *
+import mdtraj as md
+
 
 def get_glycoshape_IUPAC() :
     #get the list of available glycans on glycoshape
