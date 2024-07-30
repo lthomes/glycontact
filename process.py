@@ -817,3 +817,72 @@ def glycan_cluster_pattern(threshold = 70) :
     print("Number of glycans without a major cluster: " + str(len(glycans_without_major_cluster)))
 
     return(glycans_with_major_cluster,glycans_without_major_cluster)
+
+def get_sasa_table(glycan, mode = 'alpha') :
+    #mode determines if we are analysing alpha- or beta-linked glycans
+    pdbs = check_available_pdb("glycans_pdb/"+glycan)
+    if mode == 'alpha':
+        pdb_files = ["glycans_pdb/"+glycan+"/"+pdb for pdb in pdbs if 'alpha' in pdb]
+    if mode == 'beta':
+        pdb_files = ["glycans_pdb/"+glycan+"/"+pdb for pdb in pdbs if 'beta' in pdb]
+    pdb_files.sort()
+    sasa_values = {}
+
+    # Loop over PDB files
+    for pdb_file in pdb_files:
+        print(pdb_file)
+        # Load structure
+        structure = md.load(pdb_file)
+
+        # Calculate SASA for each atom
+        sasa = md.shrake_rupley(structure, mode='atom')
+
+        # Calculate the SASA for each monosaccharide
+        monosaccharide_sasa = {}
+        for atom in structure.topology.atoms:
+            resSeq = atom.residue.resSeq
+            resName = atom.residue.name
+            if resSeq not in monosaccharide_sasa:
+                monosaccharide_sasa[resSeq] = {'resName': resName, 'sasa': 0}
+            monosaccharide_sasa[resSeq]['sasa'] += sasa[0][atom.index]
+
+        # Store SASA values for this conformation
+        sasa_values[pdb_file] = monosaccharide_sasa
+
+    # Calculate accessibility scores and measures of variability for each monosaccharide
+    mean_scores = {}
+    median_scores = {}
+    weighted_scores = {}
+    std_dev = {}
+    coeff_var = {}
+    resNameList = []
+    cluster_frequencies = get_glycan_clusters_frequency(glycan)
+    for resSeq in sasa_values[pdb_files[0]].keys():
+        resName = sasa_values[pdb_files[0]][resSeq]['resName']
+        resNameList.append(resName)
+        monosaccharide_sasa_values = [sasa_values[pdb_file][resSeq]['sasa'] for pdb_file in pdb_files]
+        mean_scores[resSeq] = np.mean(monosaccharide_sasa_values)
+        median_scores[resSeq] = np.median(monosaccharide_sasa_values)
+        weights = [n / 100 for n in cluster_frequencies]
+        weighted_scores[resSeq] = np.average(monosaccharide_sasa_values, weights=weights, axis=0)
+        std_dev[resSeq] = np.std(monosaccharide_sasa_values)
+        coeff_var[resSeq] = np.std(monosaccharide_sasa_values) / np.mean(monosaccharide_sasa_values)
+
+    # Generate final table with all monosaccharides and their accessibility scores and measures of variability
+    table = pd.DataFrame({'Monosaccharide_id': list(mean_scores.keys()),
+                        'Monosaccharide': list(resNameList),
+                        'Mean Score': list(mean_scores.values()),
+                        'Median Score': list(median_scores.values()),
+                        'Weighted Score': list(weighted_scores.values()),
+                        'Standard Deviation': list(std_dev.values()),
+                        'Coefficient of Variation': list(coeff_var.values())})
+    
+    # get a mapping dict for annotations
+
+    pdb = pdb_files[0]
+    df = explore_threshold(pdb,glycan, threshold_list=[2.4,2.5,2.6,2.7,2.8,2.9,2.45,2.55,2.65,2.75,2.85,2.95,3])
+    dist_table = make_monosaccharide_contact_table(df,mode='distance', threshold = 200)
+    mapping_dict = df.set_index('residue_number')['IUPAC'].to_dict()
+    table['Monosaccharide'] = table['Monosaccharide_id'].map(mapping_dict)
+    
+    return(table)
