@@ -9,6 +9,7 @@ import os
 from scipy.cluster import hierarchy
 from collections import Counter
 from process import *
+from glycowork.motif.draw import GlycoDraw
 
 
 def atom_contact_map(act, export='', size = 0.5) :
@@ -150,3 +151,10 @@ def plot_monosaccharide_unstability(variability_table, format='png'):
         fig.savefig(g+'_instabilities.pdf')
         
     plt.show()
+
+def plot_glycan_score(glycan, score_list) :
+    ### Displays a given glycan and highlights monosaccharides using a score list
+    # score_list : list of raw values used to highlight monosaccharides (example: mean SASA score, standard deviation...)
+    sorted_score_list = score_list[::-1]
+    normalized_lst = [(x - min(sorted_score_list)) / (max(sorted_score_list) - min(sorted_score_list)) for x in sorted_score_list] #convert between 0 & 1
+    GlycoDraw(glycan, per_residue= normalized_lst, filepath = glycan+"_highlighted.svg")
