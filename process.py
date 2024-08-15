@@ -25,6 +25,12 @@ def get_glycoshape_IUPAC() :
 
 def download_from_glycoshape(IUPAC):
     # Download pdb files given an IUPAC sequence that exists in the glycoshape database
+    if ')' not in IUPAC:
+       print('This IUPAC corresponds to a single monosaccharide: ignored')
+       return False
+    if IUPAC[-1]==']':
+       print('This IUPAC is not formated properly: ignored')
+       return False
     outpath = IUPAC
     IUPAC_name = quote(IUPAC)
     os.makedirs(outpath, exist_ok=True)
@@ -188,6 +194,8 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
         distanceMap[current_pos] = distanceList
 
     distanceMap.index = distanceMap.columns
+    print("DISTANCE MAP")
+    print(distanceMap)
     return(distanceMap)
 
 def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary') :
@@ -257,6 +265,8 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
 
     distanceMap.index = distanceMap.columns
     distanceMap2.index = distanceMap2.columns
+    print("DISTANCE MAP")
+    print(distanceMap)
 
     if mode == 'binary' :
         return(distanceMap)
@@ -350,7 +360,7 @@ def extract_binary_interactions_from_PDB(coordinates_df, threshold):
     Returns:
     - pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' representing interactions.
     """
-    coordinates_df =  correct_dataframe(extract_3D_coordinates(coordinates_df))
+    #coordinates_df =  correct_dataframe(extract_3D_coordinates(coordinates_df))
     carbon_1_2_df = coordinates_df[(coordinates_df['atom_name'] == 'C1') | (coordinates_df['atom_name'] == 'C2')]
     oxygen_df = coordinates_df[coordinates_df['element'] == 'O']
 
@@ -382,6 +392,7 @@ def extract_binary_interactions_from_PDB(coordinates_df, threshold):
             value.append(smallest_distance)
 
     interactions_df = pd.DataFrame({'Atom': atom, 'Column': column, 'Value': value})
+    print(interactions_df)
     return interactions_df
 
 
@@ -403,28 +414,31 @@ def PDB_to_IUPAC(pdb_mono):
   map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a',
               'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'Fuc(a', 'GYE':'dFucf(b',
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b',
-              'GLC':'Glc(a', 'IDR':'IdoA(a', 'RAM':'Rha(a', 'RM4':'Rha(b', 'XXR':'dRha(a',
+              'GLC':'Glc(a', 'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a',
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
               'XYZ':'Xylf(b', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
-              'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','4YS':'GlcNS(a', 'UYS':'GlcNS(a', 'GCS':'GlcN(b', 
-              'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose',
-              "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "IDR2SO3":"IdoA2S(a", 
-              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "SIA9ACX":"Neu5Ac9Ac(b", "MAN3MEX":"Man3Me(a", 
-              "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", 
-              "NAG6PCX":"GlcNAc6Pc(b", "UYS6SO3":"GlcNS6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
+              'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
+              'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
+              "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a", 
+              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(b", "MAN3MEX":"Man3Me(a", 
+              "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a",
+              "NAG6PCX":"GlcNAc6Pc(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
   # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
   # GalNAc is recorded as "GLC" which is wrong: need for a checker function that counts the number of atoms - Glc = 21 (<25), GalNAc = 28 (>25)
   mono_core = map_dict[pdb_mono.split('_')[1]]
   return(mono_core)
 
-def create_mapping_dict_and_interactions(df, valid_fragments) :
+def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
   #df is an interaction dataframe as returned by extract_binary_interactions_from_PDB()
   # valid_fragments : obtained from glycowork to ensure that we only append valid monolinks into mapping dict
+  # n_glycan : True or False, indicates if the first mannose should be corrected or not
   mapping_dict = {}
   interaction_dict = {}
   interaction_dict2 = {}
   first_mono_list = df['Atom'].to_list()
+  #print(first_mono_list)
   second_mono_list = df['Column'].to_list()
+  #print(second_mono_list)
   mapping_dict['1_ROH']='-R'
   wrong_mannose = []
   individual_entities = []
@@ -441,7 +455,7 @@ def create_mapping_dict_and_interactions(df, valid_fragments) :
     if second_mono not in individual_entities:
       individual_entities.append(second_mono)
 
-    if mono.split('_')[1] + '(' + first_val + '-' + last_val + ')' == "MAN(1-4)":
+    if mono.split('_')[1] + '(' + first_val + '-' + last_val + ')' == "MAN(1-4)" and n_glycan == True:
       wrong_mannose.append(mono)
 
     if second_mono in wrong_mannose :
@@ -449,14 +463,16 @@ def create_mapping_dict_and_interactions(df, valid_fragments) :
 
     if mono in wrong_mannose :
       mono = mono.split('_')[0]+"_BMA"
+    
     mapped_to_check = PDB_to_IUPAC(mono) + first_val + '-' + last_val + ')'
-    #print("mapped_to_check:" + str(mapped_to_check))
+    print("mapped_to_check:" + str(mapped_to_check))
+    print(valid_fragments)
 
     if mapped_to_check in valid_fragments :
       mapping_dict[mono] = PDB_to_IUPAC(mono) + first_val + '-' + last_val + ')'
     if mapped_to_check == 'Man(a1-4)':
       mapping_dict[mono] = 'Man(b1-4)'
-    if mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check == '-R' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a1-1)' or mapped_to_check == 'Neu5Ac(b1-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)':
+    if mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check == '-R' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
       mapping_dict[mono] = mapped_to_check
 
 
@@ -466,16 +482,16 @@ def create_mapping_dict_and_interactions(df, valid_fragments) :
         interaction_dict2[mono] = [mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')']
         interaction_dict2[mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')'] = [second_mono] #added but eventually wrong, make everything else fail later
     if mono not in interaction_dict :
-      if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a1-1)' or mapped_to_check == 'Neu5Ac(b1-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)':
+      if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
         interaction_dict[mono] = [second_mono]
         interaction_dict2[mono] = [mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')']
 
       if mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')' in interaction_dict2 :
-        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a1-1)' or mapped_to_check == 'Neu5Ac(b1-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)':
+        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
           interaction_dict2[mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')'].append(second_mono)
 
       if mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')' not in interaction_dict2 :
-        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a1-1)' or mapped_to_check == 'Neu5Ac(b1-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)':
+        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
           interaction_dict2[mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')'] = [second_mono]
 
   return(mapping_dict, interaction_dict2)
@@ -518,7 +534,7 @@ def extract_binary_glycowork_interactions(graph_output):
                 label_k = mask_dic[k]
                 label_j = mask_dic[j]
                 interactions_with_labels.append((label_k, label_j))
-
+    print(interactions_with_labels)
     return(interactions_with_labels)
 
 def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) :
@@ -535,23 +551,23 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
   differences_list = list(differences)
 
   # Pairs to be ignored because specific to glycontact
-  ignore_pairs = {('GlcNAc', 'a1-1'), ('a1-1', ' '),('GlcNAc', 'b1-1'), ('b1-1', ' '), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'), ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'), ('Neu5Ac', 'b1-1'), ('Neu5Ac', 'a1-1'), ('Man', 'b1-1'), ('Man', 'a1-1'), ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'), ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'), ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'), ('GlcNAc6S','b1-1') , ('GlcNS6S', 'a1-1'), ('GlcNS6S','b1-1')}
+  ignore_pairs = {('GlcNAc', 'a1-1'), ('a1-1', ' '), ('a2-1', ' '), ('b2-1', ' '), ('GlcNAc', 'b1-1'), ('b1-1', ' '), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'), ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'), ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Man', 'b1-1'), ('Man', 'a1-1'), ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'), ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'), ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'), ('GlcNAc6S','b1-1') , ('GlcNS6S', 'a1-1'), ('GlcNS6S','b1-1'),  ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S','b1-1'), ('2-4-diacetimido-2-4-6-trideoxyhexose','a1-1'), ('GlcA2S','a1-1'), ('GlcA2S','b1-1') }
 
   # Filter out pairs to be ignored
   filtered_differences = [pair for pair in differences_list if pair not in ignore_pairs]
 
   # Print or use the filtered_differences as needed
-  #print("Filtered Differences:", filtered_differences)
+  print("Filtered Differences:", filtered_differences)
   if filtered_differences == [] and  (len(glycontact_interactions) > len(glycowork_interactions)):
     return(True)
   else :
     if filtered_differences != [] :
-      #print('Differences in annotations')
-      #print(glycowork_interactions)
-      #print(glycontact_interactions)
+      print('Differences in annotations')
+      print(glycowork_interactions)
+      print(glycontact_interactions)
       return(False)
     if (len(glycontact_interactions) <= len(glycowork_interactions)) :
-      #print("Missing monosaccharide in mapping_dict")
+      print("Missing monosaccharide in mapping_dict")
       return(False)
 
 def check_reconstructed_interactions(interaction_dict) :
@@ -564,15 +580,6 @@ def check_reconstructed_interactions(interaction_dict) :
   for node, neighbors in interaction_dict.items():
     G_dict.add_node(node)
     G_dict.add_edges_from((node, neighbor) for neighbor in neighbors)
-
-  # Draw and display the graphs
-  #plt.figure(figsize=(10, 5))
-
-  #plt.subplot(122)
-  #nx.draw(G_dict, with_labels=True, font_weight='bold', node_color='lightcoral', arrowsize=20)
-  #plt.title('Graph from Dictionary Interactions')
-
-  #plt.show()
 
   is_single_component = nx.is_connected(G_dict)
 
@@ -602,7 +609,7 @@ def annotate_pdb_data(pdb_dataframe, mapping_dict) :
 
 def correct_dataframe(df):
   #Correct an annotated dataframe, transforming unexpected GLC into GalNAc based on the number of C atom they contain
-  ### WARNING: this is a modified version of the function, assuming that it is always GalNAc(b which is wrong, which might be a wrong assomption
+  ### WARNING: this is a modified version of the function, assuming that it is always GalNAc(b which is wrong
   resnum = list(set(df['residue_number'].tolist()))
 
   for x in resnum:
@@ -613,38 +620,160 @@ def correct_dataframe(df):
         print(len(df[df['residue_number'] == x]))
         df.loc[condition, 'monosaccharide'] = df.loc[condition, 'monosaccharide'].map(lambda x: x.replace('GLC', 'NGA'))
 
+    condition = (df['monosaccharide'] == 'BGC') & (df['residue_number'] == x) & (df[(df['residue_number'] == x) & (df['element'] == 'C')]['element'].count() >= 7)
+
+    if condition.any():
+        print(len(df[df['residue_number'] == x]))
+        df.loc[condition, 'monosaccharide'] = df.loc[condition, 'monosaccharide'].map(lambda x: x.replace('GLC', 'A2G'))
+
   return df
 
 def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
   ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
   ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
 
+  # In pipeline, if IUPAC is detected as containing modified monosaccharide, pre-step of annotation of pdbfile
+  modified_mono = ["GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac", 
+                  "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6Pc",
+                  "GlcNS6S", "GlcNS3S6S"]
+  ### note: GalNAcXS will be annotated as GLC as well, so I need to correct it as well
+
+  # List of non-monosaccharide
+  non_mono_list=['SO3', 'ACX', 'MEX', 'PCX']
+
+  # Dict of modifications {link_modif:IUPAC} 
+  #modif_dict = {"6SO3":"6S"} #--> allows to write GlcNAc
+
+  # Custom PDB codes to IUPAC (check GLC/GalNAc thingy)
+  custom_pdb = {"NAG6SO3":"GlcNAc6S", "NDG6SO3":"GlcNAc6S",  "NDG3SO3":"GlcNAc3S6S", "NGA4SO3":"GalNAc4S", "IDR2SO3":"IdoA2S", 
+                "BDP3SO3":"GlcA3S", "BDP2SO3":"GlcA2S", "SIA9ACX":"Neu5Ac9Ac", "MAN3MEX":"Man3Me", 
+                "SIA9MEX":"Neu5Ac9Me", "NGC9MEX":"Neu5Gc9Me", "BDP4MEX":"GlcA4Me", "GAL6SO3":"Gal6S", 
+                "NAG6PCX":"GlcNAc6Pc", "UYS6SO3":"GlcNS6S", "4YS6SO3":"GlcNS6S", "6YS6SO3":"GlcNS6S", "GCU2SO3":"GlcA2S",  
+              'VYS3SO3':'GlcNS3S6S',  'VYS6SO3':'GlcNS3S6S', "QYS3SO3":"GlcNS3S6S", "QYS6SO3":"GlcNS3S6S"}
+  
+
   ### Extract glycan sequence from filename
   #glycan_sequence = get_glycan_sequence_from_path(pdb_file)
   glycan_sequence = glycan
-  #print(glycan_sequence)
+  n_glycan = False
+  if 'Man(b1-4)GlcNAc(b1-4)' in glycan :
+    n_glycan = True
+  print(glycan_sequence)
 
+  # To modify dict
+  to_modify_dict = {}
+
+  df = correct_dataframe(extract_3D_coordinates(pdb_file))
+
+  modified_glycan = False 
+  for mm in modified_mono :
+      if mm in glycan_sequence : 
+          modified_glycan = True
+
+  if modified_glycan == True :
+    print("MODIFIED GLYCAN")
+
+    
+
+    #list of residue_number
+    resnum = list(set(df.residue_number.to_list()))
+    resdict = {}
+    for x in resnum :
+        mono = list(set(df['monosaccharide'][df['residue_number']==x].to_list()))[0]
+        resdict[x] = mono
+
+    print("RES")
+    print(resdict)
+    #make an atomic distance table
+    dist_table = make_atom_contact_table(df)
+    #print(dist_table)
+
+    #For each element in resdict, those that are non-monosaccharide must be investigated
+    for key in resdict :
+        val = resdict[key]
+        if val in non_mono_list :
+            element = str(key) + "_" + val
+            contact_table = dist_table.filter(regex=element) #keep only columns with a given non-monosaccharide
+            
+            mask = ~contact_table.index.str.contains('|'.join(contact_table.columns))
+            contact_table = contact_table.loc[mask] #keep only lines without this given non-monosaccharide
+            
+            split_index = contact_table.index.str.split('_')
+
+            # créer un masque pour filtrer les lignes dont le troisième élément ne contient pas "H"
+            mask = ['H' not in x[2] for x in split_index]
+
+            # filtrer les lignes de la dataframe en utilisant le masque
+            filtered_table = contact_table.loc[mask]
+
+            partners = filtered_table[filtered_table != 0].stack().idxmin() #valeur non nulle la plus faible de la dataframe
+            sugar_partner = partners[0]
+
+            #get monosaccharide resnum and non-mono resnum to give them mono resnum but custom monosaccharide annotation
+            sugar_resnum, sugar, atom, atom_num = sugar_partner.split("_")
+            #link_pos = str([''.join(c for c in s if c.isdigit()) for s in atom][-1])
+            link_pos = str(re.findall(r'\d+', atom)[0])
+            modif = link_pos+val
+            modified_mono = sugar + modif 
+            print(modified_mono)
+            modified_mono_iupac = custom_pdb[modified_mono]
+
+            #print(link_pos)
+            #print(modif)
+            #print(modified_mono)
+            print(modified_mono_iupac)
+
+            #List all resnum lines that will require modification and which modif
+            to_modify_dict[int(sugar_resnum)] =  modified_mono
+            to_modify_dict[key] =  [modified_mono, sugar_resnum]
+
+
+
+
+    # charger la dataframe à partir du fichier file.pdb
+    df = correct_dataframe(extract_3D_coordinates(pdb_file))
+
+    # parcourir chaque ligne de la dataframe et appliquer les règles
+    for index, row in df.iterrows():
+        residue_number = row['residue_number']
+        if residue_number in to_modify_dict:
+            if type(to_modify_dict[residue_number]) is str : 
+                monosaccharide = to_modify_dict[residue_number]
+                df.at[index, 'monosaccharide'] = monosaccharide
+            
+            if type(to_modify_dict[residue_number]) is list:
+                monosaccharide = to_modify_dict[residue_number][0]
+                df.at[index, 'monosaccharide'] = monosaccharide
+                new_residue_number = int(to_modify_dict[residue_number][1])
+                df.at[index, 'residue_number'] = new_residue_number
+
+    # conserver la dataframe modifiée en variable
+    df_modified = df.copy()
+    df= df_modified.sort_values(by='residue_number', key=lambda x: x.astype(int))
+
+  
   ### Using glycowork, extract valid fragments (fragment = monolink like GlcNAc(b1-4))
   valid_fragments = [x.split(')')[0]+')' for x in link_find(glycan_sequence)]
-  #print(valid_fragments)
-
+  print(valid_fragments)
+  print(list(set(df['monosaccharide'].to_list())))
   ### Detect binary connections (covalent linkages) using a maximal distance threshold and valid_fragments + build a mapping dictionnary
-  res = extract_binary_interactions_from_PDB(pdb_file,threshold)
-  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res,valid_fragments)
-  #print(mapping_dict)
-  #print(interaction_dict)
-  #print(len(mapping_dict))
-  #print(len(interaction_dict))
+  res = extract_binary_interactions_from_PDB(df,threshold)
+  print("BinInt Extracted --->>><<<")
+  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res,valid_fragments, n_glycan)
+  print(mapping_dict)
+  print(interaction_dict)
+  print(len(mapping_dict))
+  print(len(interaction_dict))
 
   ### Comparison of glycowork linkages and glycontact linkages to ensure correct extraction from PDB
   # Extract glycowork interactions:
   graph_output = glycan_to_graph(glycan_sequence)
   interactions_with_labels = extract_binary_glycowork_interactions(graph_output)
-  #print(interactions_with_labels)
+  print(interactions_with_labels)
 
   # Extract glycontact interactions:
   result_list = extract_binary_glycontact_interactions(interaction_dict)
-  #print("result list:" + str(result_list))
+  print("result list:" + str(result_list))
   # Compare glycowork IUPAC to graph versus glycontact PDB to graph to ensure glycontact detection of covalent linkages is correct (must return True)
   if glycowork_vs_glycontact_interactions(interactions_with_labels, result_list) == True :
     print("glycowork and glycontact agree on the list of covalent linkages")
@@ -653,8 +782,9 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
       print("Building a network from glycontact interactions generate a single molecule, as expected")
 
       ### When everything is validated: Annotation including correction of GalNAc annotated as GLC
-      df = correct_dataframe(extract_3D_coordinates(pdb_file))
+      #df = correct_dataframe(df)
       result_df = annotate_pdb_data(df, mapping_dict)
+      
 
     else :
       print("Although the fragments building binary interactions seem fine, some interactions are missed resulting in the reconstruction of multiple submolecules")
@@ -666,7 +796,7 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
 
 def explore_threshold(pdb_file, glycan, threshold_list=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3]):
   # Apply the annotation pipeline with different threshold, and return a correct df if found
-
+  print(glycan)
   completed = False
   for x in threshold_list :
     print('threshold:' + str(x))
