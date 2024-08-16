@@ -23,7 +23,7 @@ def get_glycoshape_IUPAC() :
     parsed_dict = json.loads(x.stdout)
     return(parsed_dict['glycan_list'])
 
-def download_from_glycoshape(IUPAC):
+def download_from_glycoshape(my_path, IUPAC):
     # Download pdb files given an IUPAC sequence that exists in the glycoshape database
     if ')' not in IUPAC:
        print('This IUPAC corresponds to a single monosaccharide: ignored')
@@ -31,32 +31,26 @@ def download_from_glycoshape(IUPAC):
     if IUPAC[-1]==']':
        print('This IUPAC is not formated properly: ignored')
        return False
-    outpath = IUPAC
+    outpath = my_path + '/' + IUPAC
     IUPAC_name = quote(IUPAC)
     os.makedirs(outpath, exist_ok=True)
 
     for linktype in ['alpha']:
         for i in range(0, 500):
-
             output = '_' + linktype + '_' + str(i) + '.pdb'
-
-            # Construct the curl command with string formatting
             curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
             tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
 
             try:
-                # Use subprocess to run the command and capture the output
                 result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
 
                 if "404 Not Found" in result.stdout:
                     break  # Continue to the next iteration of the loop
 
                 result = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
-                # Specify the current and new file names
                 current_file_name = output
                 new_file_name = IUPAC + current_file_name
 
-                # Rename the file
                 os.rename(current_file_name, new_file_name)
                 shutil.move(new_file_name, outpath)
 
@@ -68,23 +62,19 @@ def download_from_glycoshape(IUPAC):
 
             output = '_' + linktype + '_' + str(i) + '.pdb'
 
-            # Construct the curl command with string formatting
             curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
             tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
 
             try:
-                # Use subprocess to run the command and capture the output
                 result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
 
                 if "404 Not Found" in result.stdout:
                     break  # Continue to the next iteration of the loop
 
                 result = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
-                # Specify the current and new file names
                 current_file_name = output
                 new_file_name = IUPAC + current_file_name
 
-                # Rename the file
                 os.rename(current_file_name, new_file_name)
                 shutil.move(new_file_name, outpath)
 
@@ -282,48 +272,97 @@ def focus_table_on_residue(table, residue) :
     new_table = table[[f for f in table.columns.to_list() if residue in f]]
     return new_table
 
-def inter_structure_variability_table(dfs, mode = 'standard'):
-    ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent but values represent the stability of monosaccharides/atoms across different PDB of the same molecule
-    # dfs : list of dataframes being tables returned by make_atom_contact_table() or make_monosaccharide_contact_table()
-    # mode : can be 'standard' (compute the sum of the absolute distances to the mean) or 'amplify' (uses the power 2 of the sum which decreases noise and increases outliers importance)
+def inter_structure_variability_table(my_path, glycan, link_type, mode='standard'):
+    ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent, 
+    ### but values represent the stability of monosaccharides/atoms across different PDB of the same molecule.
+    ### Includes weighted scores calculation based on cluster frequencies only if in "weighted" mode.
+    # my_path : path to the folder containing all PDB folders
+    # glycan : glycan in IUPAC sequence
+    # link_type : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
+    # mode : can be 'standard' (compute the sum of the absolute distances to the mean), 
+    #        'amplify' (uses the power 2 of the sum which decreases noise and increases outliers importance),
+    #        or 'weighted' (computes weighted deviations using cluster frequencies).
+
+    dfs = []
+
+    pdbs = check_available_pdb(my_path + glycan)
+    if link_type == 'alpha':
+        pdb_files = [my_path + glycan + "/" + pdb for pdb in pdbs if 'alpha' in pdb]
+    if link_type == 'beta':
+        pdb_files = [my_path + glycan + "/" + pdb for pdb in pdbs if 'beta' in pdb]
+    pdb_files.sort()
+
+    for f in pdb_files:
+        df = explore_threshold(f, glycan, threshold_list=[2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.45, 2.55, 2.65, 2.75, 2.85, 2.95, 3, 2.2, 2.25, 2.3, 2.35, 3.5])
+        dist_table = make_monosaccharide_contact_table(df, mode='distance', threshold=200)
+        dfs.append(dist_table)
 
     col_to_parse = dfs[0].columns.to_list()
 
     outdf = pd.DataFrame(columns=col_to_parse)
     outdf_power = pd.DataFrame(columns=col_to_parse)
-    for col_index in range(0,len(col_to_parse)):
+
+    # Only compute cluster frequencies if mode is 'weighted'
+    if mode == 'weighted':
+        cluster_frequencies = get_glycan_clusters_frequency(glycan)
+        weights = [n / 100 for n in cluster_frequencies]
+        outdf_weighted = pd.DataFrame(columns=col_to_parse)
+    
+    for col_index in range(len(col_to_parse)):
         current_column = col_to_parse[col_index]
         new_column = []
         new_column2 = []
-        list_of_values_lists = []
-        for df_index in range(0,len(dfs)): 
-            list_of_values_lists.append(dfs[df_index][current_column].to_list()) 
-        for y in range(0,len(list_of_values_lists[0])) : #
-            values = []
-            mean = 0
-            deviation_from_mean = []
-            sum_of_deviations = 0
-            power_of_deviations = 0
-            
-            for liste in list_of_values_lists :
-                values.append(liste[y])
+        if mode == 'weighted':
+            weighted_column = []
+        
+        list_of_values_lists = [df[current_column].to_list() for df in dfs]
+        
+        for y in range(len(list_of_values_lists[0])):
+            values = [liste[y] for liste in list_of_values_lists]
             mean = np.mean(values)
-            for v in values :
-                deviation_from_mean.append(abs(v - mean))
+            deviation_from_mean = [abs(v - mean) for v in values]
             sum_of_deviations = sum(deviation_from_mean)
-            power_of_deviations = sum_of_deviations**2
+            power_of_deviations = sum_of_deviations ** 2
+
             new_column.append(sum_of_deviations)
             new_column2.append(power_of_deviations)
+            
+            if mode == 'weighted':
+                weighted_deviation = np.average(deviation_from_mean, weights=weights, axis=0)
+                weighted_column.append(weighted_deviation)
 
         outdf[current_column] = new_column
         outdf_power[current_column] = new_column2
-    if mode == 'standard' :
-        return(outdf)
-    if mode == 'amplify' :
-        return(outdf_power)
+        
+        if mode == 'weighted':
+            outdf_weighted[current_column] = weighted_column
 
-def make_correlation_matrix(dfs):
-    ### Take a list of dataframes (dfs) containing inter-monosaccharide/atom distances across different iterations of the same glycan to compute a Pearson correlation matrix
+    if mode == 'standard':
+        return outdf
+    elif mode == 'amplify':
+        return outdf_power
+    elif mode == 'weighted':
+        return outdf_weighted
+
+def make_correlation_matrix(my_path, glycan, link_type):
+    ### Compute a Pearson correlation matrix
+    # my_path : path to the folder containing all PDB folders
+    # glycan : glycan in IUPAC sequence
+    # link_type : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
+    
+    dfs = []
+
+    pdbs = check_available_pdb(my_path+glycan)
+    if link_type == 'alpha':
+        pdb_files = [my_path+glycan+"/"+pdb for pdb in pdbs if 'alpha' in pdb]
+    if link_type == 'beta':
+        pdb_files = [my_path+glycan+"/"+pdb for pdb in pdbs if 'beta' in pdb]
+    pdb_files.sort()
+
+    for f in pdb_files :
+        df = explore_threshold(f, glycan, threshold_list=[2.4,2.5,2.6,2.7,2.8,2.9,2.45,2.55,2.65,2.75,2.85,2.95,3,2.2,2.25,2.3,2.35,3.5])
+        dist_table = make_monosaccharide_contact_table(df,mode='distance', threshold = 200)
+        dfs.append(dist_table)
 
     # Create an empty correlation matrix
     correlation_matrix = np.zeros((len(dfs[0]), len(dfs[0])))
@@ -338,10 +377,26 @@ def make_correlation_matrix(dfs):
     corr_df = pd.DataFrame(correlation_matrix, columns=df.columns, index=df.columns)
     return corr_df
 
-def inter_structure_frequency_table(dfs, threshold = 5):
+def inter_structure_frequency_table(my_path, glycan, link_type, threshold = 5):
     ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent but values represent the frequency of monosaccharides/atoms pairs that crossed a threshold distance across different PDB of the same molecule
-    # dfs : list of dataframes being tables returned by make_atom_contact_table() or make_monosaccharide_contact_table()
+    # my_path : path to the folder containing all PDB folders
+    # glycan : glycan in IUPAC sequence
+    # link_type : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
     # threshold : maximal distance a pair can show to be counted as a contact
+
+    dfs = []
+
+    pdbs = check_available_pdb(my_path+glycan)
+    if link_type == 'alpha':
+        pdb_files = [my_path+glycan+"/"+pdb for pdb in pdbs if 'alpha' in pdb]
+    if link_type == 'beta':
+        pdb_files = [my_path+glycan+"/"+pdb for pdb in pdbs if 'beta' in pdb]
+    pdb_files.sort()
+
+    for f in pdb_files :
+        df = explore_threshold(f, glycan, threshold_list=[2.4,2.5,2.6,2.7,2.8,2.9,2.45,2.55,2.65,2.75,2.85,2.95,3,2.2,2.25,2.3,2.35,3.5])
+        dist_table = make_monosaccharide_contact_table(df,mode='distance', threshold = 200)
+        dfs.append(dist_table)
 
     # Apply thresholding and create a new list of transformed DataFrames
     transformed_dfs = [df.applymap(lambda x: 1 if x < threshold else 0) for df in dfs]
@@ -950,13 +1005,13 @@ def glycan_cluster_pattern(threshold = 70) :
 
     return(glycans_with_major_cluster,glycans_without_major_cluster)
 
-def get_sasa_table(glycan, mode = 'alpha') :
+def get_sasa_table(my_path, glycan, mode = 'alpha') :
     #mode determines if we are analysing alpha- or beta-linked glycans
-    pdbs = check_available_pdb("glycans_pdb/"+glycan)
+    pdbs = check_available_pdb(my_path+glycan)
     if mode == 'alpha':
-        pdb_files = ["glycans_pdb/"+glycan+"/"+pdb for pdb in pdbs if 'alpha' in pdb]
+        pdb_files = [my_path+glycan+"/"+pdb for pdb in pdbs if 'alpha' in pdb]
     if mode == 'beta':
-        pdb_files = ["glycans_pdb/"+glycan+"/"+pdb for pdb in pdbs if 'beta' in pdb]
+        pdb_files = [my_path+glycan+"/"+pdb for pdb in pdbs if 'beta' in pdb]
     pdb_files.sort()
     sasa_values = {}
 
@@ -1018,3 +1073,54 @@ def get_sasa_table(glycan, mode = 'alpha') :
     table['Monosaccharide'] = table['Monosaccharide_id'].map(mapping_dict)
     
     return(table)
+
+def convert_glycan_to_X(glycan):
+    """
+    Converts every monosaccharide(linkage) and single monosaccharide into 'X' in a glycan string.
+    
+    Parameters:
+    - glycan (str): A string representing the glycan in IUPAC format.
+    
+    Returns:
+    - str: The modified glycan string with each monosaccharide replaced by 'X'.
+    """
+    # Regular expression to match monosaccharide(linkage) or single monosaccharide
+    pattern = r'[A-Za-z0-9]+(?:\([^\)]+\))?'
+
+    # Replace each matched pattern with 'X'
+    converted_glycan = re.sub(pattern, 'X', glycan)
+
+    return converted_glycan
+
+def group_by_silhouette(glycan_list):
+    """
+    Take a list of glycans and return a dataframe where they are annotated and sorted by their silhouette.
+    Glycans with the same silhouette share the same branching/topology (example: Neu5Ac(a2-3)Gal(b1-3)[Neu5Ac(a2-6)]GalNAc 
+    and Man(b1-4)GlcNAc(b1-4)[Fuc(a1-6)]GlcNAc share the same silhouette: XX[X]X)
+    
+    Parameters:
+    - glycan_list (list): A list of glycans in IUPAC format.
+    
+    Returns:
+    - Dataframe: The annotated dataframe.
+    """
+    silhouettes = pd.DataFrame()
+    topo_groups = [] # groups of same topology/silhouette
+    nullified_list = []
+    group_list = []
+
+    for g in glycan_list :
+        nullified = convert_glycan_to_X(g)
+        if nullified in topo_groups :
+            group = topo_groups.index(nullified)
+        else :
+            topo_groups.append(nullified)
+            group = topo_groups.index(nullified)
+        nullified_list.append(nullified)
+        group_list.append(group)
+
+    silhouettes['glycan']=glycan_list
+    silhouettes['silhouette']=nullified_list
+    silhouettes['topological_group']=group_list
+
+    return silhouettes.sort_values(by ='topological_group')
