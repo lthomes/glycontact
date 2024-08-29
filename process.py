@@ -184,8 +184,6 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
         distanceMap[current_pos] = distanceList
 
     distanceMap.index = distanceMap.columns
-    print("DISTANCE MAP")
-    print(distanceMap)
     return(distanceMap)
 
 def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary') :
@@ -255,8 +253,6 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
 
     distanceMap.index = distanceMap.columns
     distanceMap2.index = distanceMap2.columns
-    print("DISTANCE MAP")
-    print(distanceMap)
 
     if mode == 'binary' :
         return(distanceMap)
@@ -447,7 +443,6 @@ def extract_binary_interactions_from_PDB(coordinates_df, threshold):
             value.append(smallest_distance)
 
     interactions_df = pd.DataFrame({'Atom': atom, 'Column': column, 'Value': value})
-    print(interactions_df)
     return interactions_df
 
 
@@ -520,8 +515,8 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
       mono = mono.split('_')[0]+"_BMA"
     
     mapped_to_check = PDB_to_IUPAC(mono) + first_val + '-' + last_val + ')'
-    print("mapped_to_check:" + str(mapped_to_check))
-    print(valid_fragments)
+    #print("mapped_to_check:" + str(mapped_to_check))
+    #print(valid_fragments)
 
     if mapped_to_check in valid_fragments :
       mapping_dict[mono] = PDB_to_IUPAC(mono) + first_val + '-' + last_val + ')'
@@ -589,7 +584,6 @@ def extract_binary_glycowork_interactions(graph_output):
                 label_k = mask_dic[k]
                 label_j = mask_dic[j]
                 interactions_with_labels.append((label_k, label_j))
-    print(interactions_with_labels)
     return(interactions_with_labels)
 
 def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) :
@@ -612,17 +606,15 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
   filtered_differences = [pair for pair in differences_list if pair not in ignore_pairs]
 
   # Print or use the filtered_differences as needed
-  print("Filtered Differences:", filtered_differences)
+  #print("Filtered Differences:", filtered_differences)
   if filtered_differences == [] and  (len(glycontact_interactions) > len(glycowork_interactions)):
     return(True)
   else :
     if filtered_differences != [] :
-      print('Differences in annotations')
-      print(glycowork_interactions)
-      print(glycontact_interactions)
+      #print('Differences in annotations')
       return(False)
     if (len(glycontact_interactions) <= len(glycowork_interactions)) :
-      print("Missing monosaccharide in mapping_dict")
+      #print("Missing monosaccharide in mapping_dict")
       return(False)
 
 def check_reconstructed_interactions(interaction_dict) :
@@ -672,13 +664,11 @@ def correct_dataframe(df):
     condition = (df['monosaccharide'] == 'GLC') & (df['residue_number'] == x) & (df[(df['residue_number'] == x) & (df['element'] == 'C')]['element'].count() >= 7)
 
     if condition.any():
-        print(len(df[df['residue_number'] == x]))
         df.loc[condition, 'monosaccharide'] = df.loc[condition, 'monosaccharide'].map(lambda x: x.replace('GLC', 'NGA'))
 
     condition = (df['monosaccharide'] == 'BGC') & (df['residue_number'] == x) & (df[(df['residue_number'] == x) & (df['element'] == 'C')]['element'].count() >= 7)
 
     if condition.any():
-        print(len(df[df['residue_number'] == x]))
         df.loc[condition, 'monosaccharide'] = df.loc[condition, 'monosaccharide'].map(lambda x: x.replace('GLC', 'A2G'))
 
   return df
@@ -713,7 +703,6 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
   n_glycan = False
   if 'Man(b1-4)GlcNAc(b1-4)' in glycan :
     n_glycan = True
-  print(glycan_sequence)
 
   # To modify dict
   to_modify_dict = {}
@@ -726,9 +715,6 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
           modified_glycan = True
 
   if modified_glycan == True :
-    print("MODIFIED GLYCAN")
-
-    
 
     #list of residue_number
     resnum = list(set(df.residue_number.to_list()))
@@ -737,8 +723,6 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
         mono = list(set(df['monosaccharide'][df['residue_number']==x].to_list()))[0]
         resdict[x] = mono
 
-    print("RES")
-    print(resdict)
     #make an atomic distance table
     dist_table = make_atom_contact_table(df)
     #print(dist_table)
@@ -770,13 +754,12 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
             link_pos = str(re.findall(r'\d+', atom)[0])
             modif = link_pos+val
             modified_mono = sugar + modif 
-            print(modified_mono)
             modified_mono_iupac = custom_pdb[modified_mono]
 
             #print(link_pos)
             #print(modif)
             #print(modified_mono)
-            print(modified_mono_iupac)
+            #print(modified_mono_iupac)
 
             #List all resnum lines that will require modification and which modif
             to_modify_dict[int(sugar_resnum)] =  modified_mono
@@ -809,32 +792,32 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
   
   ### Using glycowork, extract valid fragments (fragment = monolink like GlcNAc(b1-4))
   valid_fragments = [x.split(')')[0]+')' for x in link_find(glycan_sequence)]
-  print(valid_fragments)
-  print(list(set(df['monosaccharide'].to_list())))
+  #print(valid_fragments)
+  #print(list(set(df['monosaccharide'].to_list())))
   ### Detect binary connections (covalent linkages) using a maximal distance threshold and valid_fragments + build a mapping dictionnary
   res = extract_binary_interactions_from_PDB(df,threshold)
-  print("BinInt Extracted --->>><<<")
+
   mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res,valid_fragments, n_glycan)
-  print(mapping_dict)
-  print(interaction_dict)
-  print(len(mapping_dict))
-  print(len(interaction_dict))
+  #print(mapping_dict)
+  #print(interaction_dict)
+  #print(len(mapping_dict))
+  #print(len(interaction_dict))
 
   ### Comparison of glycowork linkages and glycontact linkages to ensure correct extraction from PDB
   # Extract glycowork interactions:
   graph_output = glycan_to_graph(glycan_sequence)
   interactions_with_labels = extract_binary_glycowork_interactions(graph_output)
-  print(interactions_with_labels)
+  #print(interactions_with_labels)
 
   # Extract glycontact interactions:
   result_list = extract_binary_glycontact_interactions(interaction_dict)
-  print("result list:" + str(result_list))
+  #print("result list:" + str(result_list))
   # Compare glycowork IUPAC to graph versus glycontact PDB to graph to ensure glycontact detection of covalent linkages is correct (must return True)
   if glycowork_vs_glycontact_interactions(interactions_with_labels, result_list) == True :
-    print("glycowork and glycontact agree on the list of covalent linkages")
+    #print("glycowork and glycontact agree on the list of covalent linkages")
 
     if check_reconstructed_interactions(interaction_dict) == True :
-      print("Building a network from glycontact interactions generate a single molecule, as expected")
+      #print("Building a network from glycontact interactions generate a single molecule, as expected")
 
       ### When everything is validated: Annotation including correction of GalNAc annotated as GLC
       #df = correct_dataframe(df)
@@ -842,25 +825,25 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
       
 
     else :
-      print("Although the fragments building binary interactions seem fine, some interactions are missed resulting in the reconstruction of multiple submolecules")
+      #print("Although the fragments building binary interactions seem fine, some interactions are missed resulting in the reconstruction of multiple submolecules")
       return(pd.DataFrame())
   else :
-    print("glycowork and glycontact do not agree on the list of covalent linkages in this glycan. It is probable that glycontact encountered a problem with PDB monosaccharide conversion, or detecting linkages")
+    #print("glycowork and glycontact do not agree on the list of covalent linkages in this glycan. It is probable that glycontact encountered a problem with PDB monosaccharide conversion, or detecting linkages")
     return(pd.DataFrame())
   return(result_df)
 
 def explore_threshold(pdb_file, glycan, threshold_list=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3]):
   # Apply the annotation pipeline with different threshold, and return a correct df if found
-  print(glycan)
+  #print(glycan)
   completed = False
   for x in threshold_list :
-    print('threshold:' + str(x))
+    #print('threshold:' + str(x))
     res = annotation_pipeline(pdb_file,glycan,x)
     if len(res) != 0 :
       completed = True
       return(res)
   if completed == False :
-    print('None of these thresholds allows to correctly annotate your PDB file:' + str(threshold_list))
+    #print('None of these thresholds allows to correctly annotate your PDB file:' + str(threshold_list))
     return(pd.DataFrame())
   
 
@@ -1017,7 +1000,6 @@ def get_sasa_table(my_path, glycan, mode = 'alpha') :
 
     # Loop over PDB files
     for pdb_file in pdb_files:
-        print(pdb_file)
         # Load structure
         structure = md.load(pdb_file)
 
@@ -1124,3 +1106,15 @@ def group_by_silhouette(glycan_list):
     silhouettes['topological_group']=group_list
 
     return silhouettes.sort_values(by ='topological_group')
+
+def overall_monosaccharide_flexibility(variability_table, mode='sum'):
+    # plot monolink variability for all clusters of a given glycan
+    # possible formats: png, pdf
+    # mode: sum, mean
+    residue_overall_stability = {}
+    for c in variability_table.columns.to_list():
+        if mode == 'sum':
+            residue_overall_stability[c] = sum(variability_table[c].to_list())
+        if mode == 'mean':
+            residue_overall_stability[c] = sum(variability_table[c].to_list())
+    return(residue_overall_stability)
