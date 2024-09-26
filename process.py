@@ -634,7 +634,7 @@ def check_reconstructed_interactions(interaction_dict) :
       #print("The graph has only one connected component.")
       return(True)
   else:
-      print("The graph has more than one connected component.")
+      #print("The graph has more than one connected component.")
       return(False)
 
 def annotate_pdb_data(pdb_dataframe, mapping_dict) :
@@ -873,7 +873,6 @@ def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='defau
 
       preferred_partners[entities[x]] = entities[closest_index]
       preferred_partners_distances.append(distlist[closest_index])
-  print(np.mean(preferred_partners_distances))
   if mode =='default':
     return(preferred_partners)
   if mode == 'monolink' :
