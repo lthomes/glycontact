@@ -1,0 +1,77 @@
+REMARK #################################################################
+REMARK #################################################################
+REMARK #################################################################
+REMARK    Restoring Protein Glycosylation with GlycoShape
+REMARK    Callum M Ives,*, Ojas Singh,*, Silvia D’Andrea, Carl A Fogarty, Aoife M Harbison, Akash Satheesan, Beatrice Tropea, Elisa Fadda
+REMARK    bioRxiv, 2023
+REMARK ################################################################
+REMARK ################################################################
+REMARK ################################################################
+ATOM      1  HO1 ROH X   1      25.509  23.823  23.287  1.00  0.00      SYST H  
+ATOM      2  O1  ROH X   1      24.774  23.232  23.101  1.00  0.00      SYST O  
+ATOM      3  C1  GLA X   2      24.978  22.035  23.790  1.00  0.00      SYST C  
+ATOM      4  H1  GLA X   2      25.980  21.679  23.569  1.00  0.00      SYST H  
+ATOM      5  C2  GLA X   2      23.975  20.913  23.433  1.00  0.00      SYST C  
+ATOM      6  H2  GLA X   2      24.373  19.959  23.763  1.00  0.00      SYST H  
+ATOM      7  O2  GLA X   2      23.951  20.736  21.931  1.00  0.00      SYST O  
+ATOM      8  H2O GLA X   2      23.367  20.012  21.692  1.00  0.00      SYST H  
+ATOM      9  C3  GLA X   2      22.540  21.162  23.997  1.00  0.00      SYST C  
+ATOM     10  H3  GLA X   2      22.319  22.097  23.489  1.00  0.00      SYST H  
+ATOM     11  C4  GLA X   2      22.516  21.435  25.548  1.00  0.00      SYST C  
+ATOM     12  H4  GLA X   2      21.499  21.708  25.823  1.00  0.00      SYST H  
+ATOM     13  C5  GLA X   2      23.515  22.620  25.779  1.00  0.00      SYST C  
+ATOM     14  H5  GLA X   2      23.284  23.513  25.207  1.00  0.00      SYST H  
+ATOM     15  C6  GLA X   2      23.469  23.134  27.234  1.00  0.00      SYST C  
+ATOM     16  H62 GLA X   2      22.675  23.856  27.385  1.00  0.00      SYST H  
+ATOM     17  H61 GLA X   2      23.367  22.251  27.875  1.00  0.00      SYST H  
+ATOM     18  O6  GLA X   2      24.603  23.989  27.438  1.00  0.00      SYST O  
+ATOM     19  H6O GLA X   2      25.398  23.499  27.206  1.00  0.00      SYST H  
+ATOM     20  O5  GLA X   2      24.918  22.345  25.249  1.00  0.00      SYST O  
+ATOM     21  O4  GLA X   2      22.909  20.295  26.307  1.00  0.00      SYST O  
+ATOM     22  H4O GLA X   2      23.841  20.094  26.181  1.00  0.00      SYST H  
+ATOM     23  O3  GLA X   2      21.574  20.154  23.590  1.00  0.00      SYST O  
+ATOM     24  C1  MAN X   3      20.303  20.595  23.116  1.00  0.00      SYST C  
+ATOM     25  H1  MAN X   3      19.946  21.361  23.805  1.00  0.00      SYST H  
+ATOM     26  C2  MAN X   3      19.248  19.498  23.072  1.00  0.00      SYST C  
+ATOM     27  H2  MAN X   3      19.227  18.987  24.041  1.00  0.00      SYST H  
+ATOM     28  O2  MAN X   3      17.952  20.102  22.877  1.00  0.00      SYST O  
+ATOM     29  H2O MAN X   3      17.917  20.779  23.560  1.00  0.00      SYST H  
+ATOM     30  C3  MAN X   3      19.602  18.435  22.042  1.00  0.00      SYST C  
+ATOM     31  H3  MAN X   3      20.465  17.887  22.407  1.00  0.00      SYST H  
+ATOM     32  O3  MAN X   3      18.540  17.433  21.912  1.00  0.00      SYST O  
+ATOM     33  H3O MAN X   3      18.428  17.084  22.804  1.00  0.00      SYST H  
+ATOM     34  C4  MAN X   3      19.954  18.976  20.635  1.00  0.00      SYST C  
+ATOM     35  H4  MAN X   3      19.044  19.289  20.135  1.00  0.00      SYST H  
+ATOM     36  O4  MAN X   3      20.648  17.982  19.884  1.00  0.00      SYST O  
+ATOM     37  H4O MAN X   3      21.066  17.360  20.479  1.00  0.00      SYST H  
+ATOM     38  C5  MAN X   3      20.877  20.203  20.757  1.00  0.00      SYST C  
+ATOM     39  H5  MAN X   3      21.804  19.749  21.117  1.00  0.00      SYST H  
+ATOM     40  O5  MAN X   3      20.450  21.150  21.814  1.00  0.00      SYST O  
+ATOM     41  C6  MAN X   3      21.163  20.899  19.495  1.00  0.00      SYST C  
+ATOM     42  H62 MAN X   3      21.794  21.753  19.773  1.00  0.00      SYST H  
+ATOM     43  H61 MAN X   3      21.686  20.175  18.868  1.00  0.00      SYST H  
+ATOM     44  O6  MAN X   3      19.923  21.326  18.838  1.00  0.00      SYST O  
+ATOM     45  C1  GLC X   4      20.072  22.312  17.808  1.00  0.00      SYST C  
+ATOM     46  H1  GLC X   4      20.653  23.112  18.261  1.00  0.00      SYST H  
+ATOM     47  C2  GLC X   4      18.672  22.933  17.417  1.00  0.00      SYST C  
+ATOM     48  H2  GLC X   4      18.811  23.734  16.695  1.00  0.00      SYST H  
+ATOM     49  C3  GLC X   4      17.713  21.855  16.850  1.00  0.00      SYST C  
+ATOM     50  H3  GLC X   4      17.397  21.197  17.652  1.00  0.00      SYST H  
+ATOM     51  C4  GLC X   4      18.448  21.043  15.744  1.00  0.00      SYST C  
+ATOM     52  H4  GLC X   4      18.419  21.553  14.774  1.00  0.00      SYST H  
+ATOM     53  C5  GLC X   4      19.869  20.544  16.057  1.00  0.00      SYST C  
+ATOM     54  H5  GLC X   4      19.790  19.818  16.864  1.00  0.00      SYST H  
+ATOM     55  C6  GLC X   4      20.745  19.928  14.963  1.00  0.00      SYST C  
+ATOM     56  H62 GLC X   4      20.252  19.169  14.344  1.00  0.00      SYST H  
+ATOM     57  H61 GLC X   4      21.149  20.632  14.241  1.00  0.00      SYST H  
+ATOM     58  O6  GLC X   4      21.834  19.240  15.627  1.00  0.00      SYST O  
+ATOM     59  H6O GLC X   4      21.550  18.451  16.103  1.00  0.00      SYST H  
+ATOM     60  O5  GLC X   4      20.685  21.732  16.600  1.00  0.00      SYST O  
+ATOM     61  O4  GLC X   4      17.697  19.834  15.564  1.00  0.00      SYST O  
+ATOM     62  H4O GLC X   4      17.833  19.549  14.663  1.00  0.00      SYST H  
+ATOM     63  O3  GLC X   4      16.553  22.579  16.290  1.00  0.00      SYST O  
+ATOM     64  H3O GLC X   4      15.723  22.255  16.653  1.00  0.00      SYST H  
+ATOM     65  O2  GLC X   4      17.988  23.566  18.593  1.00  0.00      SYST O  
+ATOM     66  H2O GLC X   4      17.084  23.699  18.266  1.00  0.00      SYST H  
+TER      67      GLC X   4                                                       
+END   

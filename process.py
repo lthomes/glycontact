@@ -13,6 +13,7 @@ import shutil
 from urllib.parse import quote
 from glycowork.motif.annotate import *
 from glycowork.motif.graph import *
+from glycowork.motif.tokenization import *
 import mdtraj as md
 
 
@@ -1072,6 +1073,70 @@ def convert_glycan_to_X(glycan):
     converted_glycan = re.sub(pattern, 'X', glycan)
 
     return converted_glycan
+
+def convert_glycan_to_class(glycan):
+    """
+    Converts every monosaccharide(linkage) and single monosaccharide into X, XNAc,XA, XN, dX, Sia, Pen in a glycan string.
+    
+    Parameters:
+    - glycan (str): A string representing the glycan in IUPAC format.
+    
+    Returns:
+    - str: The modified glycan string with each monosaccharide replaced by 'X'.
+    """
+    # Regular expression to match monosaccharide(linkage) or single monosaccharide
+    Hex = ['Glc', 'Gal', 'Man', 'Ins', 'Galf', 'Hex']
+    dHex = ['Fuc', 'Qui', 'Rha', 'dHex']
+    HexA = ['GlcA', 'ManA', 'GalA', 'IdoA', 'HexA']
+    HexN = ['GlcN', 'ManN', 'GalN', 'HexN']
+    HexNAc = ['GlcNAc', 'GalNAc', 'ManNAc', 'HexNAc']
+    Pen = ['Ara', 'Xyl', 'Rib', 'Lyx', 'Pen']
+    Sia = ['Neu5Ac', 'Neu5Gc', 'Kdn', 'Sia']
+
+    glycan = stemify_glycan(glycan)
+   
+    mono_list = glycan.split(')')
+    mono_list = [element.split('(')[0] if '(' in element else element for element in mono_list]
+    print(mono_list)
+    m_list = []
+    for m in mono_list :
+      if '[' not in m and ']' not in m :
+        m_list.append(m)
+      if '[' in m :
+        m_list.append('[')
+        m_list.append(m.split('[')[1])
+      if ']' in m :
+        m_list.append(m.split(']')[1])
+        m_list.append(']')
+    print(m_list)  
+    silhouette = ''
+    
+    for element in m_list :
+
+      if element in Hex :
+        silhouette = silhouette + 'X'
+      if element in dHex :
+        silhouette = silhouette + 'dX'
+      if element in HexA :
+        silhouette = silhouette + 'XA'
+      if element in HexN :
+        silhouette = silhouette + 'XN'
+      if element in HexNAc :
+        silhouette = silhouette + 'XNAc'
+      if element in Pen :
+        silhouette = silhouette + 'Pen'
+      if element in Sia :
+        silhouette = silhouette + 'Sia'
+      if element not in Hex+dHex+HexA+HexN+HexNAc+Pen+Sia :
+        if element == '[' :
+          silhouette = silhouette + '['
+        if element == ']' :
+          silhouette = silhouette + ']'
+        if element not in  ['[', ']'] : 
+          print(element)
+          silhouette = silhouette + 'Unk'
+
+    return silhouette
 
 def group_by_silhouette(glycan_list):
     """
