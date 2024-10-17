@@ -465,9 +465,9 @@ def PDB_to_IUPAC(pdb_mono):
   map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a',
               'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'Fuc(a', 'GYE':'dFucf(b',
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b',
-              'GLC':'Glc(a', 'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a',
+              'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a', 'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a',
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
-              'XYZ':'Xylf(b', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
+              'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
               'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
               "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a", 
@@ -523,7 +523,7 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
       mapping_dict[mono] = PDB_to_IUPAC(mono) + first_val + '-' + last_val + ')'
     if mapped_to_check == 'Man(a1-4)':
       mapping_dict[mono] = 'Man(b1-4)'
-    if mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check == '-R' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
+    if mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check == '-R' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)' or mapped_to_check == 'Ara(a1-1)' or mapped_to_check == 'Ara(b1-1)' or mapped_to_check == 'Fru(a1-1)' or mapped_to_check == 'Fru(b1-1)' or mapped_to_check == 'ManNAc(a1-1)' or mapped_to_check == 'ManNAc(b1-1)':
       mapping_dict[mono] = mapped_to_check
 
 
@@ -533,16 +533,16 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
         interaction_dict2[mono] = [mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')']
         interaction_dict2[mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')'] = [second_mono] #added but eventually wrong, make everything else fail later
     if mono not in interaction_dict :
-      if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
+      if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)' or mapped_to_check == 'Ara(a1-1)' or mapped_to_check == 'Ara(b1-1)' or mapped_to_check == 'Fru(a1-1)' or mapped_to_check == 'Fru(b1-1)' or mapped_to_check == 'ManNAc(a1-1)' or mapped_to_check == 'ManNAc(b1-1)':
         interaction_dict[mono] = [second_mono]
         interaction_dict2[mono] = [mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')']
 
       if mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')' in interaction_dict2 :
-        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
+        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)' or mapped_to_check == 'Ara(a1-1)' or mapped_to_check == 'Ara(b1-1)' or mapped_to_check == 'Fru(a1-1)' or mapped_to_check == 'Fru(b1-1)' or mapped_to_check == 'ManNAc(a1-1)' or mapped_to_check == 'ManNAc(b1-1)':
           interaction_dict2[mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')'].append(second_mono)
 
       if mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')' not in interaction_dict2 :
-        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)':
+        if mapped_to_check in valid_fragments or mapped_to_check == 'Man(a1-4)' or mapped_to_check == '-R' or mapped_to_check == 'GlcNAc(a1-1)' or mapped_to_check == 'GlcNAc(b1-1)' or mapped_to_check =='GalNAc(a1-1)' or mapped_to_check == 'GalNAc(b1-1)' or mapped_to_check =='Glc(a1-1)' or mapped_to_check == 'Glc(b1-1)' or mapped_to_check =='Rha(a1-1)' or mapped_to_check == 'Rha(b1-1)' or mapped_to_check =='Neu5Ac(a2-1)' or mapped_to_check == 'Neu5Ac(b2-1)' or mapped_to_check =='Man(a1-1)' or mapped_to_check == 'Man(b1-1)' or mapped_to_check =='Gal(a1-1)' or mapped_to_check == 'Gal(b1-1)' or mapped_to_check =='Fuc(a1-1)' or mapped_to_check == 'Fuc(b1-1)' or mapped_to_check =='Xyl(a1-1)' or mapped_to_check == 'Xyl(b1-1)' or mapped_to_check =='GlcA(a1-1)' or mapped_to_check == 'GlcA(b1-1)' or mapped_to_check =='GlcNS(a1-1)' or mapped_to_check == 'GlcNS(b1-1)' or mapped_to_check =='GlcNAc6S(a1-1)' or mapped_to_check == 'GlcNAc6S(b1-1)' or mapped_to_check =='GlcNS6S(a1-1)' or mapped_to_check == 'GlcNS6S(b1-1)' or mapped_to_check == 'GlcNS3S6S(a1-1)' or mapped_to_check == 'GlcNS3S6S(b1-1)' or mapped_to_check == '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)' or mapped_to_check == 'GlcA2S(a1-1)' or mapped_to_check == 'GlcA2S(b1-1)' or mapped_to_check == 'Ara(a1-1)' or mapped_to_check == 'Ara(b1-1)' or mapped_to_check == 'Fru(a1-1)' or mapped_to_check == 'Fru(b1-1)' or mapped_to_check == 'ManNAc(a1-1)' or mapped_to_check == 'ManNAc(b1-1)':
           interaction_dict2[mono.split('_')[0]+'_(' + PDB_to_IUPAC(mono).split('(')[1] + first_val + '-' + last_val + ')'] = [second_mono]
 
   return(mapping_dict, interaction_dict2)
@@ -601,7 +601,7 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
   differences_list = list(differences)
 
   # Pairs to be ignored because specific to glycontact
-  ignore_pairs = {('GlcNAc', 'a1-1'), ('a1-1', ' '), ('a2-1', ' '), ('b2-1', ' '), ('GlcNAc', 'b1-1'), ('b1-1', ' '), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'), ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'), ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Man', 'b1-1'), ('Man', 'a1-1'), ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'), ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'), ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'), ('GlcNAc6S','b1-1') , ('GlcNS6S', 'a1-1'), ('GlcNS6S','b1-1'),  ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S','b1-1'), ('2-4-diacetimido-2-4-6-trideoxyhexose','a1-1'), ('GlcA2S','a1-1'), ('GlcA2S','b1-1') }
+  ignore_pairs = {('GlcNAc', 'a1-1'), ('a1-1', ' '), ('a2-1', ' '), ('b2-1', ' '), ('GlcNAc', 'b1-1'), ('b1-1', ' '), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'), ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'), ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Man', 'b1-1'), ('Man', 'a1-1'), ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'), ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'), ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'), ('GlcNAc6S','b1-1') , ('GlcNS6S', 'a1-1'), ('GlcNS6S','b1-1'),  ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S','b1-1'), ('2-4-diacetimido-2-4-6-trideoxyhexose','a1-1'), ('GlcA2S','a1-1'), ('GlcA2S','b1-1'), ('Ara','a1-1'), ('Ara','b1-1'), ('Fru','a1-1'), ('Fru','b1-1'), ('ManNAc','a1-1'), ('ManNAc','b1-1')}
 
   # Filter out pairs to be ignored
   filtered_differences = [pair for pair in differences_list if pair not in ignore_pairs]
@@ -1097,7 +1097,6 @@ def convert_glycan_to_class(glycan):
    
     mono_list = glycan.split(')')
     mono_list = [element.split('(')[0] if '(' in element else element for element in mono_list]
-    print(mono_list)
     m_list = []
     for m in mono_list :
       if '[' not in m and ']' not in m :
@@ -1106,9 +1105,9 @@ def convert_glycan_to_class(glycan):
         m_list.append('[')
         m_list.append(m.split('[')[1])
       if ']' in m :
-        m_list.append(m.split(']')[1])
         m_list.append(']')
-    print(m_list)  
+        m_list.append(m.split(']')[1])
+        
     silhouette = ''
     
     for element in m_list :
@@ -1133,12 +1132,11 @@ def convert_glycan_to_class(glycan):
         if element == ']' :
           silhouette = silhouette + ']'
         if element not in  ['[', ']'] : 
-          print(element)
           silhouette = silhouette + 'Unk'
 
     return silhouette
 
-def group_by_silhouette(glycan_list):
+def group_by_silhouette(glycan_list, mode = 'X'):
     """
     Take a list of glycans and return a dataframe where they are annotated and sorted by their silhouette.
     Glycans with the same silhouette share the same branching/topology (example: Neu5Ac(a2-3)Gal(b1-3)[Neu5Ac(a2-6)]GalNAc 
@@ -1146,6 +1144,7 @@ def group_by_silhouette(glycan_list):
     
     Parameters:
     - glycan_list (list): A list of glycans in IUPAC format.
+    - mode (string): either 'X' or 'class' to convert monosaccharide with Xs or more detailed symbols (X, XNAc, Sia...)
     
     Returns:
     - Dataframe: The annotated dataframe.
@@ -1156,7 +1155,10 @@ def group_by_silhouette(glycan_list):
     group_list = []
 
     for g in glycan_list :
-        nullified = convert_glycan_to_X(g)
+        if mode == 'X' :
+          nullified = convert_glycan_to_X(g)
+        if mode == 'class' :
+          nullified = convert_glycan_to_class(g)
         if nullified in topo_groups :
             group = topo_groups.index(nullified)
         else :
