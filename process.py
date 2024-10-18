@@ -465,7 +465,9 @@ def PDB_to_IUPAC(pdb_mono):
   map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a',
               'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'Fuc(a', 'GYE':'dFucf(b',
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b',
-              'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a', 'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a',
+              'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
+              'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a',
+              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a',
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
               'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
@@ -823,29 +825,34 @@ def annotation_pipeline(pdb_file, glycan,threshold =2.7) :
       ### When everything is validated: Annotation including correction of GalNAc annotated as GLC
       #df = correct_dataframe(df)
       result_df = annotate_pdb_data(df, mapping_dict)
-      
-
     else :
       #print("Although the fragments building binary interactions seem fine, some interactions are missed resulting in the reconstruction of multiple submolecules")
-      return(pd.DataFrame())
+      return(pd.DataFrame(),{})
   else :
     #print("glycowork and glycontact do not agree on the list of covalent linkages in this glycan. It is probable that glycontact encountered a problem with PDB monosaccharide conversion, or detecting linkages")
-    return(pd.DataFrame())
-  return(result_df)
+    return(pd.DataFrame(),{})
+  return(result_df,interaction_dict)
 
-def explore_threshold(pdb_file, glycan, threshold_list=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3]):
+def explore_threshold(pdb_file, glycan, threshold_list=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3],output='df'):
   # Apply the annotation pipeline with different threshold, and return a correct df if found
+  # output can be 'df' to get the annotated df (default), or 'interactions' to  get binary interactions
   #print(glycan)
   completed = False
   for x in threshold_list :
     #print('threshold:' + str(x))
-    res = annotation_pipeline(pdb_file,glycan,x)
-    if len(res) != 0 :
+    res, binary_interactions = annotation_pipeline(pdb_file,glycan,x)
+    if len(res) != 0 and output == 'df':
       completed = True
       return(res)
+    if len(binary_interactions) != 0 and output == 'interactions':
+      completed = True
+      return(binary_interactions)
   if completed == False :
     #print('None of these thresholds allows to correctly annotate your PDB file:' + str(threshold_list))
-    return(pd.DataFrame())
+    if output == 'df' :
+      return(pd.DataFrame())
+    else :
+      return({})
   
 
 
@@ -1173,7 +1180,8 @@ def group_by_silhouette(glycan_list, mode = 'X'):
 
     return silhouettes.sort_values(by ='topological_group')
 
-def overall_monosaccharide_flexibility(variability_table, mode='sum'):
+
+def global_monosaccharide_unstability(variability_table, mode='sum'):
     # plot monolink variability for all clusters of a given glycan
     # possible formats: png, pdf
     # mode: sum, mean
@@ -1183,4 +1191,96 @@ def overall_monosaccharide_flexibility(variability_table, mode='sum'):
             residue_overall_stability[c] = sum(variability_table[c].to_list())
         if mode == 'mean':
             residue_overall_stability[c] = sum(variability_table[c].to_list())
-    return(residue_overall_stability)
+
+
+    sorted_residue_overall_stability = sorted(residue_overall_stability.items(), key=lambda x:x[1])
+    return(sorted_residue_overall_stability)
+
+def compute_merge_SASA_flexibility(mypath, glycan, flex_mode, global_flex_mode) :
+    # flex_mode : standard, amplify, weighted
+    # global_flex_mode : sum, mean
+    
+    try :
+        sasa = get_sasa_table(mypath,glycan,'beta')
+    except :
+        print('SASA failed, lets continue with empty table')
+        try : 
+            flex = inter_structure_variability_table(mypath,glycan,'beta', mode=flex_mode)
+            print(flex)
+            mean_flex = global_monosaccharide_unstability(flex,mode=global_flex_mode)
+            global_flexibility_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_mode+'_'+global_flex_mode+'_flexibility'])
+            global_flexibility_df['Monosaccharide_id'] = global_flexibility_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
+        except :
+            print('Both SASA and Flexibility failed, lets return an empty table then...')
+            merged_df = pd.DataFrame({'Monosaccharide_id': [],
+                            'Monosaccharide': [],
+                            'Mean Score': [],
+                            'Median Score': [],
+                            'Weighted Score': [],
+                            'Standard Deviation': [],
+                            'Coefficient of Variation': [],
+                            flex_mode+'_'+global_flex_mode+'_flexibility': []})
+            return(merged_df)
+            
+    try : 
+        flex = inter_structure_variability_table(mypath,glycan,'beta', mode=flex_mode)
+        mean_flex = global_monosaccharide_unstability(flex,mode=global_flex_mode)
+        #print(mean_flex)
+    
+        global_flexibility_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_mode+'_'+global_flex_mode+'_flexibility'])
+        # Parse the Monosaccharide_id from the string
+        global_flexibility_df['Monosaccharide_id'] = global_flexibility_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
+    except :
+        print("Flex failed")
+        global_flexibility_df = pd.DataFrame(columns=['Monosaccharide_id', flex_mode+'_'+global_flex_mode+'_flexibility'])
+    # Step 3: Merge the two DataFrames on Monosaccharide_id
+    merged_df = pd.merge(sasa, global_flexibility_df[['Monosaccharide_id', flex_mode+'_'+global_flex_mode+'_flexibility']], on='Monosaccharide_id', how='left')
+
+    # Display the merged DataFrame
+    return(merged_df)
+
+def map_data_to_graph(computed_df, interaction_dict) :
+    # map the interaction dict to SASA/Flex values computed to produce a graph with node-level information
+
+    # Simplify data by keeping only the numbers before "_"
+    simplified_edges = set()
+    for key, values in interaction_dict.items():
+        key_num = key.split('_')[0]  # Extract number before "_"
+        for value in values:
+            value_num = value.split('_')[0]  # Extract number before "_"
+            # Add to set if the numbers are different
+            if key_num != value_num:
+                simplified_edges.add((int(key_num), int(value_num)))
+
+    # Create a graph with networkx
+    G = nx.Graph()
+    G.add_edges_from(simplified_edges)
+
+
+    df = computed_df
+    # Add node attributes from the DataFrame
+    for _, row in df.iterrows():
+        node_id = row['Monosaccharide_id']
+        # Add attributes from the DataFrame row
+        try :
+          G.nodes[node_id]['Monosaccharide'] = row['Monosaccharide']
+        except :
+          G.nodes[node_id]['Monosaccharide'] = node_id
+
+        G.nodes[node_id]['Mean Score'] = row['Mean Score']
+        G.nodes[node_id]['Median Score'] = row['Median Score']
+        G.nodes[node_id]['Weighted Score'] = row['Weighted Score']
+        G.nodes[node_id]['weighted_mean_flexibility'] = row['weighted_mean_flexibility']
+    
+    return(G)
+
+def check_graph_content(G) : 
+    # Print the nodes and their attributes
+    print("Graph Nodes and Their Attributes:")
+    for node, attributes in G.nodes(data=True):
+        print(f"Node {node}: {attributes}")
+
+    # Print the edges
+    print("\nGraph Edges:")
+    for edge in G.edges():
+        print(edge)
