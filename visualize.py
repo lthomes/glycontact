@@ -160,6 +160,6 @@ def plot_monosaccharide_unstability(glycan, variability_table, format='png', mod
 def plot_glycan_score(glycan, score_list) :
     ### Displays a given glycan and highlights monosaccharides using a score list
     # score_list : list of raw values used to highlight monosaccharides (example: mean SASA score, standard deviation...)
-    sorted_score_list = score_list[::-1]
+    sorted_score_list = score_list[:-1] #removal of the last value as -R is not depicted 
     normalized_lst = [(x - min(sorted_score_list)) / (max(sorted_score_list) - min(sorted_score_list)) for x in sorted_score_list] #convert between 0 & 1
-    GlycoDraw(glycan, per_residue= normalized_lst, filepath = glycan+"_highlighted.svg")
+    GlycoDraw(glycan,per_residue= normalized_lst, filepath = glycan+"_highlighted.svg")

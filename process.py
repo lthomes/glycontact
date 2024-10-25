@@ -1266,11 +1266,16 @@ def map_data_to_graph(computed_df, interaction_dict) :
           G.nodes[node_id]['Monosaccharide'] = row['Monosaccharide']
         except :
           G.nodes[node_id]['Monosaccharide'] = node_id
-
-        G.nodes[node_id]['Mean Score'] = row['Mean Score']
-        G.nodes[node_id]['Median Score'] = row['Median Score']
-        G.nodes[node_id]['Weighted Score'] = row['Weighted Score']
-        G.nodes[node_id]['weighted_mean_flexibility'] = row['weighted_mean_flexibility']
+        try :
+          G.nodes[node_id]['Mean Score'] = row['Mean Score']
+          G.nodes[node_id]['Median Score'] = row['Median Score']
+          G.nodes[node_id]['Weighted Score'] = row['Weighted Score']
+        except :
+           print("Expected columns from a correct SASA table are missing")
+        try :
+          G.nodes[node_id]['weighted_mean_flexibility'] = row['weighted_mean_flexibility']
+        except :
+           print("Expected columns from a correct flexibility table are missing")
     
     return(G)
 
@@ -1284,3 +1289,31 @@ def check_graph_content(G) :
     print("\nGraph Edges:")
     for edge in G.edges():
         print(edge)
+
+def get_score_list(datatable, my_glycans_path, glycan, mode, column):
+    #try to extract score in the same order as glycan string to ensure glycoDraw will plot them correctly
+    # datatable is either a SASA table, a flex table, or a merged table
+
+    score_list = datatable[column].to_list()[::-1]
+    mono_order = datatable['Monosaccharide'].to_list()[::-1] 
+    g_mono_order = g.replace('[','').replace(']','').split(')')[:-1]
+    g_mono_order = [m+')' if '(' in m else m for m in g_mono_order]
+
+
+    new_score_list = []
+    for x in range (0,len(g_mono_order)):
+        if g_mono_order[x] == mono_order[x]:
+            new_score_list.append(score_list[x])
+        if g_mono_order[x] != mono_order[x] and g_mono_order[x] == mono_order[x+1] :
+            new_score_list.append(score_list[x+1])
+            new_score_list.append(score_list[x])
+            x +=1
+        
+    
+    new_score_list.append(score_list[x+1])
+    new_score_list.append(score_list[x+2])
+
+    if len(new_score_list) == len(score_list):
+        return(new_score_list)
+    if len(new_score_list) != len(score_list):
+        return(score_list)
