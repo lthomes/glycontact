@@ -968,11 +968,12 @@ def get_glycan_clusters_frequency(glycan):
   all_frequencies = get_all_clusters_frequency()
   return(all_frequencies[glycan])
 
-def glycan_cluster_pattern(threshold = 70) :
+def glycan_cluster_pattern(threshold = 70, mute = False) :
     ### Parse all clusters of all glycans on glycoshape. 
     ### Returns glycans with one major cluster AND glycans with many minor clusters
     ### Classification is performed based on a proportion threshold (default = 70)
     # threshold: proportion that the main cluster must have to be considered as a major cluster
+    # if mute is set to True, then the prints are ignored
     # If the proportion of the main cluster is lower, the current glycan is assumed to be represented by multiple structural clusters
     
     all_frequencies = get_all_clusters_frequency()
@@ -989,9 +990,9 @@ def glycan_cluster_pattern(threshold = 70) :
                 glycans_without_major_cluster.append(key)
         except:
             pass
-    
-    print("Number of glycans with one major cluster: " + str(len(glycans_with_major_cluster)))
-    print("Number of glycans without a major cluster: " + str(len(glycans_without_major_cluster)))
+    if mute == False :
+      print("Number of glycans with one major cluster: " + str(len(glycans_with_major_cluster)))
+      print("Number of glycans without a major cluster: " + str(len(glycans_without_major_cluster)))
 
     return(glycans_with_major_cluster,glycans_without_major_cluster)
 
