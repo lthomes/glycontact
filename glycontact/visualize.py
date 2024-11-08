@@ -8,7 +8,7 @@ import imageio
 import os
 from scipy.cluster import hierarchy
 from collections import Counter
-from process import *
+from glycontact.process import *
 from glycowork.motif.draw import GlycoDraw
 
 
