@@ -19,7 +19,7 @@ import mdtraj as md
 
 def get_glycoshape_IUPAC() :
     #get the list of available glycans on glycoshape
-    curl_command = 'curl -X GET https://glycoshape.io/api/available_glycans'
+    curl_command = 'curl -X GET https://glycoshape.org/api/available_glycans'
     x = subprocess.run(curl_command, shell=True, capture_output=True, text=True)
     parsed_dict = json.loads(x.stdout)
     return(parsed_dict['glycan_list'])
@@ -39,8 +39,8 @@ def download_from_glycoshape(my_path, IUPAC):
     for linktype in ['alpha']:
         for i in range(0, 500):
             output = '_' + linktype + '_' + str(i) + '.pdb'
-            curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
-            tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
+            curl_command = f'curl -o {output} "https://glycoshape.org/database/{IUPAC_name}/PDB_format_ATOM/cluster{i}_{linktype}.PDB.pdb"'
+            tiny_command = f'curl "https://glycoshape.org/database/{IUPAC_name}/PDB_format_ATOM/cluster{i}_{linktype}.PDB.pdb"'
 
             try:
                 result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
@@ -63,8 +63,8 @@ def download_from_glycoshape(my_path, IUPAC):
 
             output = '_' + linktype + '_' + str(i) + '.pdb'
 
-            curl_command = f'curl -o {output} "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
-            tiny_command = f'curl "https://glycoshape.io/database/{IUPAC_name}/PDB_format_ATOM/{IUPAC_name}_cluster{i}_{linktype}.PDB.pdb"'
+            curl_command = f'curl -o {output} "https://glycoshape.org/database/{IUPAC_name}/PDB_format_ATOM/cluster{i}_{linktype}.PDB.pdb"'
+            tiny_command = f'curl "https://glycoshape.org/database/{IUPAC_name}/PDB_format_ATOM/cluster{i}_{linktype}.PDB.pdb"'
 
             try:
                 result = subprocess.run(tiny_command, shell=True, capture_output=True, text=True)
