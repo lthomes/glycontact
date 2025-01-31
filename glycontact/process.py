@@ -13,6 +13,8 @@ import shutil
 from io import StringIO
 from pathlib import Path
 from urllib.parse import quote
+from scipy.spatial.distance import cdist
+from scipy.optimize import minimize
 from glycowork.motif.annotate import *
 from glycowork.motif.graph import *
 from glycowork.motif.tokenization import *
@@ -781,3 +783,165 @@ def get_score_list(datatable, my_glycans_path, glycan, mode, column):
     # Add remaining scores
     new_scores.extend(scores[i:i+2])
     return new_scores if len(new_scores) == len(scores) else scores
+
+
+def extract_glycan_coords(pdb_filepath, residue_ids=None):
+    """
+    Extract main chain coordinates of glycan residues from PDB file.
+    
+    Args:
+        pdb_file: Path to PDB file
+        residue_ids: Optional list of residue numbers to extract. If None, extracts all main chain atoms.
+            
+    Returns:
+        Tuple of (coordinates array, atom labels)
+    """
+    df = extract_3D_coordinates(pdb_filepath)
+    if residue_ids:
+        df = df[df['residue_number'].isin(residue_ids)]
+    # Get common atoms present in most glycans
+    common_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
+    coords, atom_labels = [], []
+    for _, row in df.iterrows():
+        if row['atom_name'] in common_atoms:
+            coords.append([row['x'], row['y'], row['z']])
+            atom_labels.append(f"{row['residue_number']}_{row['monosaccharide']}_{row['atom_name']}")
+    return np.array(coords), atom_labels
+
+
+def filter_matching_atoms(ref_coords, ref_labels, mobile_coords, mobile_labels):
+    """
+    Filter coordinates to include only atoms that appear in both structures.
+    
+    Args:
+        ref_coords: Reference coordinates array
+        ref_labels: Reference atom labels
+        mobile_coords: Mobile coordinates array 
+        mobile_labels: Mobile atom labels
+        
+    Returns:
+        Tuple of filtered (ref_coords, mobile_coords)
+    """
+    common_atoms = set(ref_labels).intersection(mobile_labels)
+    ref_idx = [i for i, label in enumerate(ref_labels) if label in common_atoms]
+    mobile_idx = [i for i, label in enumerate(mobile_labels) if label in common_atoms]
+    return ref_coords[ref_idx], mobile_coords[mobile_idx]
+
+
+def kabsch_align(mobile_coords, ref_coords):
+    """
+    Align mobile coordinates to reference using Kabsch algorithm.
+    
+    Args:
+        mobile_coords: Coordinates to transform 
+        ref_coords: Reference coordinates
+        
+    Returns:
+        Tuple of (transformed coordinates, RMSD)
+    """
+    # Center coordinates
+    ref_center = ref_coords.mean(axis=0) 
+    mobile_center = mobile_coords.mean(axis=0)
+    ref_centered = ref_coords - ref_center
+    mobile_centered = mobile_coords - mobile_center
+    # Calculate optimal rotation matrix
+    H = mobile_centered.T @ ref_centered
+    U, _, Vt = np.linalg.svd(H)
+    R = Vt.T @ U.T
+    # Handle special case of reflection
+    if np.linalg.det(R) < 0:
+        Vt[-1] *= -1
+        R = Vt.T @ U.T
+    # Transform mobile coordinates
+    mobile_transformed = (mobile_centered @ R) + ref_center
+    # Calculate RMSD
+    rmsd = np.sqrt(((ref_coords - mobile_transformed) ** 2).sum(axis=1).mean())
+    return mobile_transformed, rmsd
+
+
+def align_point_sets(mobile_coords, ref_coords):
+    """
+    Find optimal rigid transformation to align two point sets.
+    Uses Kabsch algorithm after finding best point correspondences.
+    
+    Args:
+        mobile_coords: Nx3 array of coordinates to transform
+        ref_coords: Mx3 array of reference coordinates
+        
+    Returns:
+        Tuple of (transformed coordinates, RMSD)
+    """
+    def get_rotation_matrix(angles):
+        """Create 3D rotation matrix from angles."""
+        cx, cy, cz = np.cos(angles)
+        sx, sy, sz = np.sin(angles)
+        Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
+        Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
+        Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
+        return Rx @ Ry @ Rz
+
+    def objective(params):
+        """Objective function to minimize."""
+        angles = params[:3]
+        translation = params[3:]
+        # Apply rotation and translation
+        R = get_rotation_matrix(angles)
+        transformed = (mobile_coords @ R) + translation
+        # Calculate distances between all points
+        distances = cdist(transformed, ref_coords)
+        # Use sum of minimum distances as score
+        return np.min(distances, axis=1).sum()
+
+    # Initial guess
+    initial_guess = np.zeros(6)  # 3 rotation angles + 3 translation components
+    # Optimize alignment
+    result = minimize(objective, initial_guess, method='Nelder-Mead')
+    # Get final transformation
+    final_angles = result.x[:3]
+    final_translation = result.x[3:]
+    R = get_rotation_matrix(final_angles)
+    transformed_coords = (mobile_coords @ R) + final_translation
+    # Calculate final RMSD
+    distances = cdist(transformed_coords, ref_coords)
+    min_distances = np.min(distances, axis=1)
+    rmsd = np.sqrt(np.mean(min_distances ** 2))
+    return transformed_coords, rmsd
+
+
+def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=None):
+    """
+    Superimpose two glycan structures and calculate RMSD.
+    
+    Args:
+        ref_pdb: Reference PDB file
+        mobile_pdb: Mobile PDB file to superimpose
+        ref_residues: Optional list of residue numbers for reference glycan
+        mobile_residues: Optional list of residue numbers for mobile glycan
+        
+    Returns:
+        Dict containing:
+            - ref_coords: Original coordinates of reference
+            - transformed_coords: Aligned mobile coordinates
+            - rmsd: Root mean square deviation
+            - ref_labels: Atom labels from reference structure
+            - mobile_labels: Atom labels from mobile structure
+    """
+    # Extract coordinates
+    ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues)
+    mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues)
+##    # Filter to matching atoms
+##    ref_filtered, mobile_filtered = filter_matching_atoms(
+##        ref_coords, ref_labels, mobile_coords, mobile_labels
+##    )
+##    if len(ref_filtered) == 0:
+##        raise ValueError("No matching atoms found between structures")
+##    # Perform alignment
+##    transformed_coords, rmsd = kabsch_align(mobile_filtered, ref_filtered)
+    transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords)
+    return {
+        'ref_coords': ref_coords,
+        'transformed_coords': transformed_coords,
+        'rmsd': rmsd,
+        'ref_labels': ref_labels,
+        'mobile_labels': mobile_labels
+    }
