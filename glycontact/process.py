@@ -37,6 +37,8 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a",
               "NAG6PCX":"GlcNAc6Pc(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
 
+global_path = 'glycans_pdb/'
+
 
 def get_glycoshape_IUPAC() :
     #get the list of available glycans on glycoshape
@@ -144,26 +146,25 @@ def focus_table_on_residue(table, residue) :
     return table.loc[mask, mask]
 
 
-def get_contact_tables(my_path, glycan, link_type):
-    pdbs = [f"{my_path}{glycan}/{pdb}" for pdb in os.listdir(f"{my_path}{glycan}") 
-            if link_type in pdb]
-    return [make_monosaccharide_contact_table(
-        annotation_pipeline(f, glycan, threshold=3.5)[0],
-        #[2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.45, 2.55, 2.65, 2.75, 2.85, 2.95, 3, 2.2, 2.25, 2.3, 2.35, 3.5])[0],
-        mode='distance', threshold=200) for f in sorted(pdbs)]
+def get_contact_tables(glycan, stereo, my_path=None):
+    dfs, _ = annotation_pipeline(glycan, pdb_file=my_path, threshold=3.5, stereo=stereo)
+    return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs]
 
 
-def inter_structure_variability_table(my_path, glycan, link_type, mode='standard'):
+def inter_structure_variability_table(glycan, stereo='alpha', mode='standard', my_path=None):
     ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent, 
     ### but values represent the stability of monosaccharides/atoms across different PDB of the same molecule.
     ### Includes weighted scores calculation based on cluster frequencies only if in "weighted" mode.
     # my_path : path to the folder containing all PDB folders
     # glycan : glycan in IUPAC sequence
-    # link_type : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
+    # stereo : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
     # mode : can be 'standard' (compute the sum of the absolute distances to the mean), 
     #        'amplify' (uses the power 2 of the sum which decreases noise and increases outliers importance),
     #        or 'weighted' (computes weighted deviations using cluster frequencies).
-    dfs = get_contact_tables(my_path, glycan, link_type)
+    if isinstance(glycan, str):
+        dfs = get_contact_tables(glycan, stereo, my_path=my_path)
+    elif isinstance(glycan, list):
+        dfs = glycan
     columns = dfs[0].columns
     values_array = np.array([df.values for df in dfs])
     mean_values = np.mean(values_array, axis=0)
@@ -178,12 +179,15 @@ def inter_structure_variability_table(my_path, glycan, link_type, mode='standard
     return pd.DataFrame(result, columns=columns, index=columns)
 
 
-def make_correlation_matrix(my_path, glycan, link_type):
+def make_correlation_matrix(glycan, stereo='alpha', my_path=None):
     ### Compute a Pearson correlation matrix
     # my_path : path to the folder containing all PDB folders
     # glycan : glycan in IUPAC sequence
-    # link_type : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
-    dfs = get_contact_tables(my_path, glycan, link_type)
+    # stereo : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
+    if isinstance(glycan, str):
+        dfs = get_contact_tables(glycan, stereo, my_path=my_path)
+    elif isinstance(glycan, list):
+        dfs = glycan
     # Create an empty correlation matrix
     corr_sum = np.zeros((len(dfs[0]), len(dfs[0])))
     # Calculate the correlation matrix based on the distances
@@ -192,13 +196,16 @@ def make_correlation_matrix(my_path, glycan, link_type):
     return pd.DataFrame(corr_sum/len(dfs), columns=df.columns, index=df.columns)
 
 
-def inter_structure_frequency_table(my_path, glycan, link_type, threshold = 5):
+def inter_structure_frequency_table(glycan, stereo='alpha', threshold = 5, my_path=None):
     ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent but values represent the frequency of monosaccharides/atoms pairs that crossed a threshold distance across different PDB of the same molecule
     # my_path : path to the folder containing all PDB folders
     # glycan : glycan in IUPAC sequence
-    # link_type : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
+    # stereo : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
     # threshold : maximal distance a pair can show to be counted as a contact
-    dfs = get_contact_tables(my_path, glycan, link_type)
+    if isinstance(glycan, str):
+        dfs = get_contact_tables(glycan, stereo, my_path=my_path)
+    elif isinstance(glycan, list):
+        dfs = glycan
     # Apply thresholding and create a new list of transformed DataFrames
     binary_arrays = [df.values < threshold for df in dfs]
     # Sum up the transformed DataFrames to create the final DataFrame
@@ -247,6 +254,17 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
   #df is an interaction dataframe as returned by extract_binary_interactions_from_PDB()
   # valid_fragments : obtained from glycowork to ensure that we only append valid monolinks into mapping dict
   # n_glycan : True or False, indicates if the first mannose should be corrected or not
+  special_cases = {
+            'Man(a1-4)', '-R', 'GlcNAc(a1-1)', 'GlcNAc(b1-1)', 'GalNAc(a1-1)', 
+            'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)', 
+            'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)', 
+            'Gal(b1-1)', 'Fuc(a1-1)', 'Fuc(b1-1)', 'Xyl(a1-1)', 'Xyl(b1-1)', 
+            'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)', 
+            'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)', 
+            'GlcNS3S6S(b1-1)', '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)', 
+            'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Fru(a1-1)', 
+            'Fru(b1-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
+        }
   mapping_dict = {'1_ROH': '-R'}
   interaction_dict, interaction_dict2 = {}, {}
   wrong_mannose, individual_entities = [], []
@@ -266,24 +284,10 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
             if m in wrong_mannose:
                 m = f"{m.split('_')[0]}_BMA"
         mapped_to_check = f"{map_dict[mono.split('_')[1]]}{first_val}-{last_val})"
-        valid_mapped = mapped_to_check in valid_fragments
-        is_special_case = mapped_to_check in {
-            'Man(a1-4)', '-R', 'GlcNAc(a1-1)', 'GlcNAc(b1-1)', 'GalNAc(a1-1)', 
-            'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)', 
-            'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)', 
-            'Gal(b1-1)', 'Fuc(a1-1)', 'Fuc(b1-1)', 'Xyl(a1-1)', 'Xyl(b1-1)', 
-            'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)', 
-            'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)', 
-            'GlcNS3S6S(b1-1)', '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)', 
-            'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Fru(a1-1)', 
-            'Fru(b1-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
-        }
-        if valid_mapped or is_special_case:
-            if mapped_to_check == 'Man(a1-4)':
-                mapping_dict[mono] = 'Man(b1-4)'
-            else:
-                mapping_dict[mono] = mapped_to_check
-            mono_key = f"{mono.split('_')[0]}_({map_dict[mono.split('_')[1]].split('(')[1]}{first_val}-{last_val})"
+        if (mapped_to_check in valid_fragments) or (mapped_to_check in special_cases):
+            mapped_to_use = 'Man(b1-4)' if mapped_to_check == 'Man(a1-4)' else mapped_to_check
+            mapping_dict[mono] = mapped_to_use
+            mono_key = f"{mono.split('_')[0]}_({mapped_to_use.split('(')[1]}"
             if mono in interaction_dict:
                 if second_mono_base not in interaction_dict[mono]:
                     interaction_dict[mono].append(second_mono_base)
@@ -385,9 +389,7 @@ def correct_dataframe(df):
   return df
 
 
-def annotation_pipeline(pdb_file, glycan,threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3]) :
-  ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
-  ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
+def get_annotation(glycan, pdb_file, threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3], stereo = "alpha"):
   MODIFIED_MONO = {
         "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac", 
         "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6Pc",
@@ -459,6 +461,18 @@ def annotation_pipeline(pdb_file, glycan,threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,
         check_reconstructed_interactions(interaction_dict)):
         return annotate_pdb_data(df, mapping_dict), interaction_dict
   return pd.DataFrame(), {}
+
+
+def annotation_pipeline(glycan, pdb_file = None, threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3], stereo = "alpha") :
+  ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
+  ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
+  if pdb_file is None:
+      pdb_file = os.listdir(f"{global_path}{glycan}")
+      pdb_file = [f"{global_path}{glycan}/{pdb}" for pdb in pdb_file if stereo in pdb]
+  if isinstance(pdb_file, str):
+      pdb_file = [pdb_file]
+  dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold, stereo=stereo) for pdb in pdb_file])
+  return dfs, int_dicts
 
 
 def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='default'):
@@ -809,56 +823,6 @@ def extract_glycan_coords(pdb_filepath, residue_ids=None):
     return np.array(coords), atom_labels
 
 
-def filter_matching_atoms(ref_coords, ref_labels, mobile_coords, mobile_labels):
-    """
-    Filter coordinates to include only atoms that appear in both structures.
-    
-    Args:
-        ref_coords: Reference coordinates array
-        ref_labels: Reference atom labels
-        mobile_coords: Mobile coordinates array 
-        mobile_labels: Mobile atom labels
-        
-    Returns:
-        Tuple of filtered (ref_coords, mobile_coords)
-    """
-    common_atoms = set(ref_labels).intersection(mobile_labels)
-    ref_idx = [i for i, label in enumerate(ref_labels) if label in common_atoms]
-    mobile_idx = [i for i, label in enumerate(mobile_labels) if label in common_atoms]
-    return ref_coords[ref_idx], mobile_coords[mobile_idx]
-
-
-def kabsch_align(mobile_coords, ref_coords):
-    """
-    Align mobile coordinates to reference using Kabsch algorithm.
-    
-    Args:
-        mobile_coords: Coordinates to transform 
-        ref_coords: Reference coordinates
-        
-    Returns:
-        Tuple of (transformed coordinates, RMSD)
-    """
-    # Center coordinates
-    ref_center = ref_coords.mean(axis=0) 
-    mobile_center = mobile_coords.mean(axis=0)
-    ref_centered = ref_coords - ref_center
-    mobile_centered = mobile_coords - mobile_center
-    # Calculate optimal rotation matrix
-    H = mobile_centered.T @ ref_centered
-    U, _, Vt = np.linalg.svd(H)
-    R = Vt.T @ U.T
-    # Handle special case of reflection
-    if np.linalg.det(R) < 0:
-        Vt[-1] *= -1
-        R = Vt.T @ U.T
-    # Transform mobile coordinates
-    mobile_transformed = (mobile_centered @ R) + ref_center
-    # Calculate RMSD
-    rmsd = np.sqrt(((ref_coords - mobile_transformed) ** 2).sum(axis=1).mean())
-    return mobile_transformed, rmsd
-
-
 def align_point_sets(mobile_coords, ref_coords):
     """
     Find optimal rigid transformation to align two point sets.
@@ -929,14 +893,6 @@ def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=
     # Extract coordinates
     ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues)
     mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues)
-##    # Filter to matching atoms
-##    ref_filtered, mobile_filtered = filter_matching_atoms(
-##        ref_coords, ref_labels, mobile_coords, mobile_labels
-##    )
-##    if len(ref_filtered) == 0:
-##        raise ValueError("No matching atoms found between structures")
-##    # Perform alignment
-##    transformed_coords, rmsd = kabsch_align(mobile_filtered, ref_filtered)
     transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords)
     return {
         'ref_coords': ref_coords,
