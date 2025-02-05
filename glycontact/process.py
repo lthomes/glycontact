@@ -10,6 +10,7 @@ import json
 import requests
 import json
 import shutil
+import random
 from io import StringIO
 from pathlib import Path
 from urllib.parse import quote
@@ -475,6 +476,11 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=[2.2,2.4,2.5,2.6,2.7,
   return dfs, int_dicts
 
 
+def get_example_pdb(glycan, stereo=''):
+    pdb_file = os.listdir(f"{global_path}{glycan}")
+    return random.choice([f"{global_path}{glycan}/{pdb}" for pdb in pdb_file if stereo in pdb])
+
+
 def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='default'):
   #return the preferred partner of a given monosaccharide, except those closer than the threshold (which will be considered as covalent linkages)
   #df must be a monosaccharide distance table correctly reanotated
@@ -578,10 +584,12 @@ def glycan_cluster_pattern(threshold = 70, mute = False) :
     return major_clusters, minor_clusters
 
 
-def get_sasa_table(my_path, glycan, mode = 'alpha') :
-    #mode determines if we are analysing alpha- or beta-linked glycans
-    pattern = 'alpha' if mode == 'alpha' else 'beta'
-    pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{pattern}*"))
+def get_sasa_table(glycan, stereo = 'alpha', my_path=None) :
+    if my_path is None:
+        pdb_files = os.listdir(f"{global_path}{glycan}")
+        pdb_files = sorted(f"{global_path}{glycan}/{pdb}" for pdb in pdb_files if stereo in pdb)
+    else:
+        pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
     sasa_values = {}
     cluster_frequencies = get_all_clusters_frequency()[glycan]
     weights = np.array([n / 100 for n in cluster_frequencies])
@@ -623,7 +631,7 @@ def get_sasa_table(my_path, glycan, mode = 'alpha') :
         df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
     table = pd.DataFrame(df_data)
     # Update monosaccharide names using mapping
-    df = annotation_pipeline(pdb_files[0], glycan)
+    df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5, stereo=stereo)
     if not df.empty:
         mapping_dict = df.set_index('residue_number')['IUPAC'].to_dict()
         table['Monosaccharide'] = table['Monosaccharide_id'].map(mapping_dict)
@@ -708,16 +716,16 @@ def global_monosaccharide_unstability(variability_table, mode='sum'):
     return sorted(residue_stability.items(), key=lambda x: x[1])
 
 
-def compute_merge_SASA_flexibility(mypath, glycan, flex_mode, global_flex_mode) :
+def compute_merge_SASA_flexibility(glycan, flex_mode, global_flex_mode='mean', stereo='alpha', my_path=None) :
     # flex_mode : standard, amplify, weighted
     # global_flex_mode : sum, mean
     try:
-        sasa = get_sasa_table(mypath, glycan, 'beta')
+        sasa = get_sasa_table(glycan, stereo, my_path=my_path)
     except:
         sasa = pd.DataFrame()
         print('SASA failed, continuing with empty table')
     try:
-        flex = inter_structure_variability_table(mypath, glycan, 'beta', mode=flex_mode)
+        flex = inter_structure_variability_table(glycan, stereo, mode=flex_mode, my_path=None)
         mean_flex = global_monosaccharide_unstability(flex, mode=global_flex_mode)
         flex_col = f'{flex_mode}_{global_flex_mode}_flexibility'
         flex_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_col])
@@ -763,6 +771,88 @@ def map_data_to_graph(computed_df, interaction_dict) :
     return G
 
 
+def remove_and_concatenate_labels(graph):
+    nodes_to_remove = []  # List to store nodes that need to be removed
+    # Iterate through nodes in sorted order to ensure proper handling
+    for node in sorted(graph.nodes):
+        if node % 2 == 1:  # Odd index
+            neighbors = list(graph.neighbors(node))
+            if len(neighbors) > 1:  # Only connect neighbors if there's more than one
+                for i in range(len(neighbors)):
+                    for j in range(i + 1, len(neighbors)):
+                        graph.add_edge(neighbors[i], neighbors[j])  # Add edge between neighbors
+            predecessor = node - 1  # Get predecessor index
+            if predecessor in graph.nodes:  # Ensure the predecessor exists
+                # Concatenate string_labels
+                predecessor_label = graph.nodes[predecessor].get("string_labels", "")
+                current_label = graph.nodes[node].get("string_labels", "")
+                graph.nodes[predecessor]["string_labels"] = predecessor_label + '('+current_label+')'
+            nodes_to_remove.append(node)  # Mark node for removal
+    # Remove the odd-indexed nodes after processing
+    graph.remove_nodes_from(nodes_to_remove)
+
+
+def trim_gcontact(G_contact) :
+    # Remove node 1 which corresponds to -R, absent from G_work
+    if 1 in G_contact:
+        neighbors = list(G_contact.neighbors(1))  # Get the neighbors of node 1
+        if len(neighbors) > 1:  # If node 1 has more than one neighbor
+            for i in range(len(neighbors)):
+                for j in range(i + 1, len(neighbors)):
+                    G_contact.add_edge(neighbors[i], neighbors[j])  # Add edge between neighbors
+        G_contact.remove_node(1)  # Remove node 1
+
+
+# Function to perform attribute-aware isomorphism check
+def compare_graphs_with_attributes(G_contact, G_work):
+    # Define a custom node matcher
+    def node_match(node_attrs1, node_attrs2):
+        # Ensure 'string_labels' in G is part of 'Monosaccharide' in G2
+        return (
+            'string_labels' in node_attrs1
+            and 'Monosaccharide' in node_attrs2
+            and node_attrs1['string_labels'] in node_attrs2['Monosaccharide']
+        )
+    # Create an isomorphism matcher with the custom node matcher
+    matcher = nx.isomorphism.GraphMatcher(G_work, G_contact, node_match=node_match)
+    mapping_dict = {} # format= gcontact_index: gwork_index
+    if matcher.is_isomorphic():  # Check if the graphs are isomorphic
+        # Extract the mapping of nodes
+        mapping = matcher.mapping
+        for node_g, node_g2 in mapping.items():
+            mapping_dict[node_g2] = node_g
+    else:
+        print("The graphs are not isomorphic with the given attribute constraints.")
+    return(mapping_dict)
+
+
+def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact) -> nx.Graph:
+    """Create a glyco-contact annotated graph with flexibility attributes."""
+    glycowork_graph = glycan_to_nxGraph(glycan)
+    node_attributes = {node: g_contact.nodes[node]
+                           for node in g_contact.nodes}
+    # Map attributes to the glycowork graph nodes
+    flex_attribute_mapping = {
+        mapping_dict[gcontact_node]: attributes
+        for gcontact_node, attributes in node_attributes.items()
+        if gcontact_node in mapping_dict
+    }
+    # Assign the mapped attributes to the glycowork graph
+    nx.set_node_attributes(glycowork_graph, flex_attribute_mapping)
+    return glycowork_graph
+
+
+def get_structure_graph(glycan, stereo='alpha'):
+    merged = compute_merge_SASA_flexibility(glycan,'weighted', stereo=stereo)
+    _, datadict = get_annotation(glycan, get_example_pdb(glycan), threshold=3.5)
+    G_contact = map_data_to_graph(merged, datadict)
+    G_work = glycan_to_nxGraph(glycan)
+    remove_and_concatenate_labels(G_work)
+    trim_gcontact(G_contact)
+    m_dict = compare_graphs_with_attributes(G_contact, G_work)
+    return create_glycontact_annotated_graph(glycan, mapping_dict=m_dict, g_contact=G_contact)
+
+
 def check_graph_content(G) : 
     # Print the nodes and their attributes
     print("Graph Nodes and Their Attributes:")
@@ -774,7 +864,7 @@ def check_graph_content(G) :
         print(edge)
 
 
-def get_score_list(datatable, my_glycans_path, glycan, mode, column):
+def get_score_list(datatable, glycan, column):
     #try to extract score in the same order as glycan string to ensure GlycoDraw will plot them correctly
     # datatable is either a SASA table, a flex table, or a merged table
     scores = datatable[column].to_list()[::-1]

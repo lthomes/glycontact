@@ -91,14 +91,19 @@ def plot_monosaccharide_instability(glycan, variability_table, format='png', mod
     plt.show()
 
 
-def plot_glycan_score(glycan, score_list) :
+def plot_glycan_score(glycan, score_list=[], attribute="Weighted Score", save_plot=False) :
     ### Displays a given glycan and highlights monosaccharides using a score list
     # score_list : list of raw values used to highlight monosaccharides (example: mean SASA score, standard deviation...)
-    # Remove -R value and normalize scores
-    scores = np.array(score_list[:-1])
+    if not score_list:
+        ggraph = get_structure_graph(glycan)
+        scores = np.array(list(nx.get_node_attributes(ggraph, attribute).values()))
+    else:
+        scores = np.array(score_list[:-1])  # Remove -R value
+    # Normalize scores
     score_range = scores.max() - scores.min()
     normalized_scores = (scores - scores.min()) / score_range if score_range > 0 else np.zeros_like(scores)
-    GlycoDraw(glycan, per_residue=normalized_scores.tolist(), filepath=f"{glycan}_highlighted.svg")
+    filepath = f"{glycan}_highlighted.pdf" if save_plot else ''
+    return GlycoDraw(glycan, per_residue=normalized_scores.tolist(), filepath=filepath)
 
 
 def plot_superimposed_glycans(superposition_result, output_file=None, show_labels=True):
