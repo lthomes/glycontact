@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import re
 import os
+import copy
 from collections import Counter
 import subprocess
 import json
 import requests
-import json
 import shutil
 import random
 from io import StringIO
@@ -16,9 +16,9 @@ from pathlib import Path
 from urllib.parse import quote
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
-from glycowork.motif.annotate import *
-from glycowork.motif.graph import *
-from glycowork.motif.tokenization import *
+from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
+from glycowork.motif.annotate import link_find
+from glycowork.motif.processing import canonicalize_iupac
 import mdtraj as md
 
 # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
@@ -39,12 +39,18 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               "NAG6PCX":"GlcNAc6Pc(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
 
 global_path = 'glycans_pdb/'
+this_dir = Path(__file__).parent
+json_path = this_dir / "20250205_GLYCOSHAPE.json"
+with open(json_path) as f:
+    glycoshape_mirror = json.load(f)
 
 
-def get_glycoshape_IUPAC() :
+def get_glycoshape_IUPAC(fresh=False) :
     #get the list of available glycans on glycoshape
-    return json.loads(subprocess.run('curl -X GET https://glycoshape.org/api/available_glycans',
-        shell=True,capture_output=True,text=True).stdout)['glycan_list']
+    if fresh:
+        return json.loads(subprocess.run('curl -X GET https://glycoshape.org/api/available_glycans', shell=True,capture_output=True,text=True).stdout)['glycan_list']
+    else:
+        return set(entry["iupac"] for entry in glycoshape_mirror.values())
 
 
 def download_from_glycoshape(my_path, IUPAC):
@@ -147,12 +153,15 @@ def focus_table_on_residue(table, residue) :
     return table.loc[mask, mask]
 
 
-def get_contact_tables(glycan, stereo, my_path=None):
+def get_contact_tables(glycan, stereo, level="monosaccharide", my_path=None):
     dfs, _ = annotation_pipeline(glycan, pdb_file=my_path, threshold=3.5, stereo=stereo)
-    return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs]
+    if level == "monosaccharide":
+        return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs]
+    else:
+        return [make_atom_contact_table(df, mode='distance', threshold=200) for df in dfs]
 
 
-def inter_structure_variability_table(glycan, stereo='alpha', mode='standard', my_path=None):
+def inter_structure_variability_table(glycan, stereo='alpha', mode='standard', my_path=None, fresh=False):
     ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent, 
     ### but values represent the stability of monosaccharides/atoms across different PDB of the same molecule.
     ### Includes weighted scores calculation based on cluster frequencies only if in "weighted" mode.
@@ -171,7 +180,7 @@ def inter_structure_variability_table(glycan, stereo='alpha', mode='standard', m
     mean_values = np.mean(values_array, axis=0)
     deviations = np.abs(values_array - mean_values)
     if mode == 'weighted':
-        weights = np.array(get_all_clusters_frequency()[glycan]) / 100
+        weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
         result = np.average(deviations, weights=weights, axis=0)
     elif mode == 'amplify':
         result = np.sum(deviations, axis=0) ** 2
@@ -390,7 +399,7 @@ def correct_dataframe(df):
   return df
 
 
-def get_annotation(glycan, pdb_file, threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3], stereo = "alpha"):
+def get_annotation(glycan, pdb_file, threshold=3.5, stereo = "alpha"):
   MODIFIED_MONO = {
         "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac", 
         "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6Pc",
@@ -464,7 +473,7 @@ def get_annotation(glycan, pdb_file, threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25
   return pd.DataFrame(), {}
 
 
-def annotation_pipeline(glycan, pdb_file = None, threshold=[2.2,2.4,2.5,2.6,2.7,2.8,2.9,2.25,2.45,2.55,2.65,2.75,2.85,2.95,3], stereo = "alpha") :
+def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = "alpha") :
   ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
   ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
   if pdb_file is None:
@@ -485,7 +494,6 @@ def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='defau
   #return the preferred partner of a given monosaccharide, except those closer than the threshold (which will be considered as covalent linkages)
   #df must be a monosaccharide distance table correctly reanotated
   #mode can be 'default' (check individual monosaccharides in glycan), 'monolink' (check monosaccharide-linkages in glycan), 'monosaccharide' (check monosaccharide types)
-  
   # should the observed frequencies be normalized based on the occurence of each monosaccharide? Indeed, if GlcNAc is often close to Man, is it by choice, or because it is surrounded by so many Man that it has no other choice?
   entities = df.columns.tolist()
   preferred_partners = {}
@@ -508,37 +516,13 @@ def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='defau
         return {k: v.split('_')[1].split('(')[0] for k, v in preferred_partners.items()}
 
 
-def show_monosaccharide_preference_structure(df, monosaccharide, threshold, mode='default'):
-  #df must be a monosaccharide distance table correctly reanotated
-  #mode can be 'default' (check individual monosaccharides in glycan), 'monolink' (check monosaccharide-linkages in glycan), 'monosaccharide' (check monosaccharide types)
-  res_dict = monosaccharide_preference_structure(df, monosaccharide, threshold, mode)
-  value_counts = Counter(res_dict.values())
-  # Plotting the histogram
-  plt.bar(value_counts.keys(), value_counts.values())
-  plt.xlabel('Values')
-  plt.ylabel('Frequency')
-  plt.title(f'Frequency of Encountered Values for {monosaccharide} above {threshold}')
-  plt.tight_layout()
-  plt.show()
-
-
-def multi_glycan_monosaccharide_preference_structure(prefix,suffix,glycan_sequence,monosaccharide,threshold, mode='default'):
+def multi_glycan_monosaccharide_preference_structure(glycan, stereo, monosaccharide, threshold=3.5, mode='default'):
   ### with multiple dicts accross multiple structures
-  # prefix : directory (ex: "PDB_format_ATOM2")
   # suffix : 'alpha' or 'beta'
   # glycan_sequence : IUPAC
-  pdb_pattern = f"{prefix}/{glycan_sequence}_{suffix}_*.pdb"
-  dict_list = []
-  for pdb_file in Path(prefix).glob(f"{glycan_sequence}_{suffix}_*.pdb"):
-        try:
-            annotated_df = annotation_pipeline(str(pdb_file), glycan_sequence)
-            if not annotated_df.empty:
-                dist_table = make_monosaccharide_contact_table(annotated_df, mode='distance')
-                data_dict = monosaccharide_preference_structure(dist_table, monosaccharide, 
-                                                              threshold, mode)
-                dict_list.append(data_dict)
-        except Exception as e:
-            continue
+  mono_tables = get_contact_tables(glycan, stereo)
+  dict_list = [monosaccharide_preference_structure(dist, monosaccharide, 
+                                                              threshold, mode) for dist in mono_tables]
   all_values = [v for d in dict_list for v in d.values()]
   if not all_values:
         return
@@ -551,24 +535,27 @@ def multi_glycan_monosaccharide_preference_structure(prefix,suffix,glycan_sequen
   plt.show()
 
 
-def get_all_clusters_frequency():
+def get_all_clusters_frequency(fresh=False):
   ### Extract all glycan cluster frequencies from glycoshape and returns a dict
-  response = requests.get("https://glycoshape.org/database/GLYCOSHAPE.json")
-  if response.status_code == 200:
+  data = {}
+  if fresh:
+      response = requests.get("https://glycoshape.org/database/GLYCOSHAPE.json")
+      if response.status_code == 200:
         data = response.json()
-        return {value["iupac"]: [value["clusters"][key] for key in value["clusters"]]
+  else:
+      data = glycoshape_mirror
+  return {value["iupac"]: [value["clusters"][key] for key in value["clusters"]]
                 for key, value in data.items()}
-  return {}
 
 
-def glycan_cluster_pattern(threshold = 70, mute = False) :
+def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
     ### Parse all clusters of all glycans on glycoshape. 
     ### Returns glycans with one major cluster AND glycans with many minor clusters
     ### Classification is performed based on a proportion threshold (default = 70)
     # threshold: proportion that the main cluster must have to be considered as a major cluster
     # if mute is set to True, then the prints are ignored
     # If the proportion of the main cluster is lower, the current glycan is assumed to be represented by multiple structural clusters
-    all_frequencies = get_all_clusters_frequency()
+    all_frequencies = get_all_clusters_frequency(fresh=fresh)
     major_clusters, minor_clusters = [], []
     for glycan, freqs in all_frequencies.items():
         try:
@@ -584,14 +571,14 @@ def glycan_cluster_pattern(threshold = 70, mute = False) :
     return major_clusters, minor_clusters
 
 
-def get_sasa_table(glycan, stereo = 'alpha', my_path=None) :
+def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
     if my_path is None:
         pdb_files = os.listdir(f"{global_path}{glycan}")
         pdb_files = sorted(f"{global_path}{glycan}/{pdb}" for pdb in pdb_files if stereo in pdb)
     else:
         pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
     sasa_values = {}
-    cluster_frequencies = get_all_clusters_frequency()[glycan]
+    cluster_frequencies = get_all_clusters_frequency(fresh=fresh)[glycan]
     weights = np.array([n / 100 for n in cluster_frequencies])
     # Process each PDB file
     for pdb_file in pdb_files:
@@ -705,7 +692,7 @@ def group_by_silhouette(glycan_list, mode = 'X'):
     return df.sort_values('topological_group')
 
 
-def global_monosaccharide_unstability(variability_table, mode='sum'):
+def global_monosaccharide_instability(variability_table, mode='sum'):
     # plot monolink variability for all clusters of a given glycan
     # possible formats: png, pdf
     # mode: sum, mean
@@ -726,7 +713,7 @@ def compute_merge_SASA_flexibility(glycan, flex_mode, global_flex_mode='mean', s
         print('SASA failed, continuing with empty table')
     try:
         flex = inter_structure_variability_table(glycan, stereo, mode=flex_mode, my_path=None)
-        mean_flex = global_monosaccharide_unstability(flex, mode=global_flex_mode)
+        mean_flex = global_monosaccharide_instability(flex, mode=global_flex_mode)
         flex_col = f'{flex_mode}_{global_flex_mode}_flexibility'
         flex_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_col])
         flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
@@ -846,7 +833,7 @@ def get_structure_graph(glycan, stereo='alpha'):
     merged = compute_merge_SASA_flexibility(glycan,'weighted', stereo=stereo)
     _, datadict = get_annotation(glycan, get_example_pdb(glycan), threshold=3.5)
     G_contact = map_data_to_graph(merged, datadict)
-    G_work = glycan_to_nxGraph(glycan)
+    G_work = glycan_to_nxGraph(canonicalize_iupac(glycan))
     remove_and_concatenate_labels(G_work)
     trim_gcontact(G_contact)
     m_dict = compare_graphs_with_attributes(G_contact, G_work)

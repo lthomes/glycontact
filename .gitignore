@@ -5,6 +5,8 @@ glycans_pdb_old/
 __pycache__/
 *.py[cod]
 *.svg
+*.gif
+*.png
 
 # C extensions
 *.so
