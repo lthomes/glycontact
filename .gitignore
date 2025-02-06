@@ -1,6 +1,5 @@
 .DS_Store
 Results/
-glycans_pdb_old/
 .ipynb_checkpoints
 __pycache__/
 *.py[cod]

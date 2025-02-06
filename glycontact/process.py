@@ -14,6 +14,7 @@ import random
 from io import StringIO
 from pathlib import Path
 from urllib.parse import quote
+from typing import Tuple, Dict, List
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
@@ -91,9 +92,9 @@ def extract_3D_coordinates(pdb_file):
                'x', 'y', 'z', 'occupancy', 'temperature_factor', 'element']
     # Open the PDB file for reading
     with open(pdb_file) as pdb_f:
-        lines = [line for line in pdb_f if 'ATOM   ' in line and 'REMARK' not in line]
+        lines = [line for line in pdb_f if line.startswith('ATOM')]
     # Read the relevant lines into a DataFrame using fixed-width format
-    return pd.read_fwf(StringIO(''.join(lines)), names=columns, colspecs=[(0, 6), (6, 11), (12, 16), (17, 20), (21, 22), (22, 26),
+    return pd.read_fwf(StringIO(''.join(lines)), names=columns, colspecs=[(0, 6), (6, 11), (12, 16), (17, 20), (20, 22), (22, 26),
                                                          (30, 38), (38, 46), (46, 54), (54, 60), (60, 66), (76, 78)])
 
 
@@ -978,3 +979,216 @@ def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=
         'ref_labels': ref_labels,
         'mobile_labels': mobile_labels
     }
+
+
+def calculate_torsion_angle(coords: List[List[float]]) -> float:
+    """Calculate torsion angle from 4 xyz coordinates using vector algebra.
+    Args:
+        coords: List of 4 [x,y,z] coordinates
+    Returns:
+        float: Torsion angle in degrees
+    """
+    p = [np.array(p, dtype=float) for p in coords]
+    v = [p[1] - p[0], p[2] - p[1], p[3] - p[2]]
+    n1, n2 = np.cross(v[0], v[1]), np.cross(v[1], v[2])
+    n1 /= np.linalg.norm(n1)
+    n2 /= np.linalg.norm(n2)
+    return np.degrees(np.arctan2(
+        np.dot(np.cross(n1, v[1]/np.linalg.norm(v[1])), n2),
+        np.dot(n1, n2)
+    ))
+
+
+def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[str]]) -> pd.DataFrame:
+    """Calculate phi/psi torsion angles for all glycosidic linkages in structure.
+    Args:
+        df: DataFrame with PDB atomic coordinates
+        interaction_dict: Dictionary of glycosidic linkages
+    Returns:
+        DataFrame: Phi/psi angles for each linkage
+    """
+    results = []
+    for donor_key, linkage_info in interaction_dict.items():
+        if not any('_(' in link for link in linkage_info):
+            continue
+        linkage_str = linkage_info[0]
+        match = re.match(r'\d+_\(([\w])(\d+)-(\d+)\)', linkage_str)
+        if not match:
+            continue
+        aform, pos = match.group(1), int(match.group(3))
+        donor_res = int(donor_key.split('_')[0])
+        acceptor_id = interaction_dict[linkage_str][0]
+        acceptor_res = int(acceptor_id.split('_')[0])
+        if df[df['residue_number'] == acceptor_res]['monosaccharide'].iloc[0] == 'ROH':
+            continue
+        try:
+            donor = df[df['residue_number'] == donor_res]
+            acceptor = df[df['residue_number'] == acceptor_res]
+            # Special handling for sialic acid
+            if 'SIA' in donor_key:
+                o5_name = 'O6'  # In sialic acid, O5 is actually O6
+                o_pos = 'O1A'   # Sialic acid uses O1A for glycosidic bond
+            else:
+                o5_name = 'O5'
+                o_pos = f'O{pos}'
+            coords_phi = [
+                donor[donor['atom_name'] == o5_name].iloc[0][['x', 'y', 'z']].values.astype(float),
+                donor[donor['atom_name'] == 'C1'].iloc[0][['x', 'y', 'z']].values.astype(float),
+                donor[donor['atom_name'] == o_pos].iloc[0][['x', 'y', 'z']].values.astype(float),
+                acceptor[acceptor['atom_name'] == f'C{pos}'].iloc[0][['x', 'y', 'z']].values.astype(float)
+            ]
+            next_c = pos + 1 if pos < 6 else pos - 1
+            coords_psi = [coords_phi[1], coords_phi[2], coords_phi[3],
+                acceptor[acceptor['atom_name'] == f'C{next_c}'].iloc[0][['x', 'y', 'z']].values.astype(float)]
+            results.append({
+                'linkage': f"{donor_key}-{acceptor_id}",
+                'phi': round(calculate_torsion_angle(coords_phi), 2),
+                'psi': round(calculate_torsion_angle(coords_psi), 2),
+                'anomeric_form': aform,
+                'position': pos
+            })
+        except (IndexError, KeyError) as e:
+            print(f"Warning: Skipping {donor_key}-{acceptor_id}: {str(e)}")
+            continue
+    return pd.DataFrame(results)
+
+
+def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
+    """Calculate ring puckering parameters for a monosaccharide using the Cremer-Pople method.
+    Args:
+        df: DataFrame with PDB coordinates
+        residue_number: Residue number to analyze
+    Returns:
+        Dictionary with puckering parameters
+    """
+    residue = df[df['residue_number'] == residue_number]
+    mono_type = residue['monosaccharide'].iloc[0]
+    # Get ring atoms based on monosaccharide type
+    is_sialic = 'SIA' in mono_type
+    if is_sialic:  # 9-atom sialic acid rings
+        ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6', 'O6']
+    else:  # Standard 6-membered pyranose rings
+        ring_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
+    # Extract coordinates of ring atoms
+    coords = []
+    for atom in ring_atoms:
+        atom_data = residue[residue['atom_name'] == atom]
+        if atom_data.empty:
+            raise ValueError(f"Missing ring atom {atom} in residue {residue_number}")
+        coords.append(atom_data[['x', 'y', 'z']].values[0].astype(float))
+    coords = np.array(coords)
+    # Calculate geometrical center
+    center = np.mean(coords, axis=0)
+    n = len(ring_atoms)
+    # Define normal vector to mean plane
+    z_vector = np.zeros(3)
+    for j in range(n):
+        k = (j + 1) % n
+        z_vector += np.cross(coords[j] - center, coords[k] - center)
+    z_vector /= np.linalg.norm(z_vector)
+    # Project atoms onto mean plane
+    y_vector = coords[0] - center
+    y_vector -= np.dot(y_vector, z_vector) * z_vector
+    y_vector /= np.linalg.norm(y_vector)
+    x_vector = np.cross(y_vector, z_vector)
+    # Calculate puckering coordinates
+    zj = np.array([np.dot(coord - center, z_vector) for coord in coords])
+    # Calculate puckering amplitudes
+    qm = np.zeros(n//2)
+    phi = np.zeros(n//2)
+    for m in range(n//2):
+        qm_sin = 0
+        qm_cos = 0
+        for j in range(n):
+            angle = 2 * np.pi * (m + 1) * j / n
+            qm_sin += zj[j] * np.sin(angle)
+            qm_cos += zj[j] * np.cos(angle)
+        qm[m] = np.sqrt(qm_sin**2 + qm_cos**2) * (2/n)
+        phi[m] = np.degrees(np.arctan2(qm_sin, qm_cos)) % 360
+    # Total puckering amplitude
+    Q = np.sqrt(np.sum(qm**2))
+    # Phase angle θ
+    if is_sialic:
+        # For sialic acid rings (using second largest amplitude)
+        theta = np.degrees(np.arccos(qm[2] / Q))
+        # Adjust the phase angle calculation for the larger ring
+        phi = [np.degrees(np.arctan2(
+            np.sum([zj[j] * np.sin(2 * np.pi * (m + 1) * j / n) for j in range(n)]),
+            np.sum([zj[j] * np.cos(2 * np.pi * (m + 1) * j / n) for j in range(n)])
+        )) % 360 for m in range(n//2)]
+    else:
+        # For 6-membered rings
+        theta = np.degrees(np.arccos(qm[1] / Q))
+    # Determine conformation
+    conformation = "Unknown"
+    if is_sialic:
+        # More detailed classification for sialic acids
+        # Sialic acids typically prefer a 2C5 chair conformation
+        if theta < 30:
+            conformation = "2C5"  # Most common in nature
+        elif theta > 150:
+            conformation = "5C2"  # Less common inverted chair
+        elif theta < 90:
+            # Add more specific boat type based on phi
+            phi_main = phi[2]  # Use different phi for 9-membered ring
+            if 330 <= phi_main or phi_main < 30:
+                conformation = "B2,5"
+            elif 150 <= phi_main < 210:
+                conformation = "B3,O6"
+        else:
+            conformation = "S3,5"  # Most common skew form
+    else:
+        if theta < 45:
+            conformation = "4C1"
+        elif theta > 135:
+            conformation = "1C4"
+        else:
+            # Check for boat/skew-boat
+            boat_types = {
+                0: "B1,4", 60: "B2,5", 120: "B3,6",
+                180: "B1,4", 240: "B2,5", 300: "B3,6"
+            }
+            skew_types = {
+                30: "1S3", 90: "2S6", 150: "3S1",
+                210: "4S2", 270: "5S3", 330: "6S4"
+            }
+            phi_main = phi[1]  # Main pseudorotational angle
+            # Find closest reference angle
+            if abs(phi_main % 60) < 30:
+                # Boat conformation
+                closest_angle = round(phi_main / 60) * 60
+                conformation = boat_types.get(closest_angle % 360, "")
+            else:
+                # Skew-boat conformation
+                closest_angle = round((phi_main - 30) / 60) * 60 + 30
+                conformation = skew_types.get(closest_angle % 360, "")
+    return {
+        'residue': residue_number,
+        'monosaccharide': mono_type,
+        'Q': round(Q, 3),
+        'theta': round(theta, 2),
+        'phi': [round(p, 2) for p in phi],
+        'conformation': conformation
+    }
+
+
+def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH']) -> pd.DataFrame:
+    """Analyze ring conformations for all residues in structure.
+    Args:
+        df: DataFrame with PDB coordinates
+        exclude_types: List of residue types to exclude
+    Returns:
+        DataFrame with ring parameters for each residue
+    """
+    results = []
+    residues = df.groupby('residue_number')['monosaccharide'].first()
+    for res_num, mono_type in residues.items():
+        if mono_type in exclude_types:
+            continue
+        try:
+            pucker = calculate_ring_pucker(df, res_num)
+            results.append(pucker)
+        except ValueError as e:
+            print(f"Warning: {str(e)}")
+            continue   
+    return pd.DataFrame(results)
