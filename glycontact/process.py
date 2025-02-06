@@ -721,8 +721,8 @@ def compute_merge_SASA_flexibility(glycan, flex_mode, global_flex_mode='mean', s
     except:
         if sasa.empty:
             return pd.DataFrame(columns=[
-                'Monosaccharide_id', 'Monosaccharide', 'Mean Score', 'Median Score',
-                'Weighted Score', 'Standard Deviation', 'Coefficient of Variation',
+                'Monosaccharide_id', 'Monosaccharide', 'Mean SASA', 'Median SASA',
+                'Weighted SASA', 'Standard Deviation', 'Coefficient of Variation',
                 f'{flex_mode}_{global_flex_mode}_flexibility'
             ])
         flex_df = pd.DataFrame(columns=['Monosaccharide_id', f'{flex_mode}_{global_flex_mode}_flexibility'])
@@ -733,7 +733,7 @@ def compute_merge_SASA_flexibility(glycan, flex_mode, global_flex_mode='mean', s
                    on='Monosaccharide_id', how='left')
 
 
-def map_data_to_graph(computed_df, interaction_dict) :
+def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None) :
     # map the interaction dict to SASA/Flex values computed to produce a graph with node-level information
     # Create edges from simplified interaction dict
     edges = {(int(k.split('_')[0]), int(v.split('_')[0])) 
@@ -742,6 +742,26 @@ def map_data_to_graph(computed_df, interaction_dict) :
             if k.split('_')[0] != v.split('_')[0]}
     G = nx.Graph()
     G.add_edges_from(edges)
+    # Create a mapping of monosaccharide_id to ring conformation data if available
+    ring_conf_map = {}
+    if ring_conf_df is not None:
+        for _, row in ring_conf_df.iterrows():
+            ring_conf_map[row['residue']] = {
+                'Q': row['Q'],
+                'theta': row['theta'],
+                'conformation': row['conformation']
+            }
+    # Create a mapping for torsion angles
+    torsion_map = {}
+    if torsion_df is not None:
+        for _, row in torsion_df.iterrows():
+            # Extract the residue numbers from the linkage string
+            res_nums = [match.group() for match in re.finditer(r'\d+', row['linkage'])]  # Gets ["5", "3"] from "5_FUC-3_GAL"
+            edge_key = tuple(sorted([int(res_nums[0]), int(res_nums[1])]))
+            torsion_map[edge_key] = {
+                'phi_angle': row['phi'],
+                'psi_angle': row['psi'],
+            }
     # Add node attributes
     for _, row in computed_df.iterrows():
         node_id = row['Monosaccharide_id']
@@ -749,13 +769,20 @@ def map_data_to_graph(computed_df, interaction_dict) :
         # Add monosaccharide info
         attrs['Monosaccharide'] = row.get('Monosaccharide', node_id)
         # Add SASA scores if available
-        for col in ['Mean Score', 'Median Score', 'Weighted Score']:
+        for col in ['Mean SASA', 'Median SASA', 'Weighted SASA']:
             if col in row:
                 attrs[col] = row[col]
         # Add flexibility if available
         if 'weighted_mean_flexibility' in row:
             attrs['weighted_mean_flexibility'] = row['weighted_mean_flexibility']
+        # Add ring conformation data if available
+        if ring_conf_map and node_id in ring_conf_map:
+            attrs.update(ring_conf_map[node_id])
         G.add_node(node_id, **attrs)
+    # Add torsion angles as edge attributes
+    for edge_key, torsion_data in torsion_map.items():
+        if edge_key in G.edges():
+            nx.set_edge_attributes(G, {edge_key: torsion_data})
     return G
 
 
@@ -827,13 +854,28 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact) -> n
     }
     # Assign the mapped attributes to the glycowork graph
     nx.set_node_attributes(glycowork_graph, flex_attribute_mapping)
+    # Map torsion angles to linkage nodes
+    edge_attributes = nx.get_edge_attributes(g_contact, 'phi_angle')
+    for (u, v), phi in edge_attributes.items():
+        # Find the linkage node between these monosaccharides in glycowork_graph
+        u_mapped = mapping_dict[u]
+        v_mapped = mapping_dict[v]
+        # Find the node that represents the linkage between u_mapped and v_mapped
+        common_neighbors = set(glycowork_graph.neighbors(u_mapped)) & set(glycowork_graph.neighbors(v_mapped))
+        for linkage_node in common_neighbors:
+            glycowork_graph.nodes[linkage_node].update({
+                'phi_angle': g_contact[u][v]['phi_angle'],
+                'psi_angle': g_contact[u][v]['psi_angle']
+            })
     return glycowork_graph
 
 
 def get_structure_graph(glycan, stereo='alpha'):
-    merged = compute_merge_SASA_flexibility(glycan,'weighted', stereo=stereo)
-    _, datadict = get_annotation(glycan, get_example_pdb(glycan), threshold=3.5)
-    G_contact = map_data_to_graph(merged, datadict)
+    merged = compute_merge_SASA_flexibility(glycan, 'weighted', stereo=stereo)
+    res, datadict = get_annotation(glycan, get_example_pdb(glycan, stereo=stereo), threshold=3.5)
+    ring_conf = get_ring_conformations(res)
+    torsion_angles = get_glycosidic_torsions(res, datadict)
+    G_contact = map_data_to_graph(merged, datadict, ring_conf_df=ring_conf, torsion_df=torsion_angles)
     G_work = glycan_to_nxGraph(canonicalize_iupac(glycan))
     remove_and_concatenate_labels(G_work)
     trim_gcontact(G_contact)

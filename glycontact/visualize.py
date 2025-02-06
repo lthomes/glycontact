@@ -104,7 +104,7 @@ def plot_monosaccharide_instability(glycan, format='png', mode='sum'):
     plt.show()
 
 
-def plot_glycan_score(glycan, score_list=[], attribute="Weighted Score", save_plot=False) :
+def plot_glycan_score(glycan, score_list=[], attribute="Weighted SASA", save_plot=False) :
     ### Displays a given glycan and highlights monosaccharides using a score list
     # score_list : list of raw values used to highlight monosaccharides (example: mean SASA score, standard deviation...)
     if not score_list:
