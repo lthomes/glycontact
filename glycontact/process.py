@@ -39,7 +39,8 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a",
               "NAG6PCX":"GlcNAc6Pc(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
 
-global_path = 'glycans_pdb/'
+PACKAGE_ROOT = Path(__file__).parent.parent
+global_path = PACKAGE_ROOT / 'glycans_pdb/'
 this_dir = Path(__file__).parent
 json_path = this_dir / "20250205_GLYCOSHAPE.json"
 with open(json_path) as f:
@@ -400,7 +401,7 @@ def correct_dataframe(df):
   return df
 
 
-def get_annotation(glycan, pdb_file, threshold=3.5, stereo = "alpha"):
+def get_annotation(glycan, pdb_file, threshold=3.5):
   MODIFIED_MONO = {
         "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac", 
         "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6Pc",
@@ -478,22 +479,22 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = "alpha"
   ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
   ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
   if pdb_file is None:
-      pdb_file = os.listdir(f"{global_path}{glycan}")
-      pdb_file = [f"{global_path}{glycan}/{pdb}" for pdb in pdb_file if stereo in pdb]
+      pdb_file = os.listdir(global_path / glycan)
+      pdb_file = [global_path / glycan / pdb for pdb in pdb_file if stereo in pdb]
   if isinstance(pdb_file, str):
       pdb_file = [pdb_file]
-  dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold, stereo=stereo) for pdb in pdb_file])
+  dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold) for pdb in pdb_file])
   return dfs, int_dicts
 
 
 def get_example_pdb(glycan, stereo=''):
-    pdb_file = os.listdir(f"{global_path}{glycan}")
-    return random.choice([f"{global_path}{glycan}/{pdb}" for pdb in pdb_file if stereo in pdb])
+    pdb_file = os.listdir(global_path / glycan)
+    return random.choice([global_path / glycan / pdb for pdb in pdb_file if stereo in pdb])
 
 
-def monosaccharide_preference_structure(df,monosaccharide,threshold, mode='default'):
+def monosaccharide_preference_structure(df, monosaccharide, threshold, mode='default'):
   #return the preferred partner of a given monosaccharide, except those closer than the threshold (which will be considered as covalent linkages)
-  #df must be a monosaccharide distance table correctly reanotated
+  #df must be a monosaccharide distance table correctly reannotated
   #mode can be 'default' (check individual monosaccharides in glycan), 'monolink' (check monosaccharide-linkages in glycan), 'monosaccharide' (check monosaccharide types)
   # should the observed frequencies be normalized based on the occurence of each monosaccharide? Indeed, if GlcNAc is often close to Man, is it by choice, or because it is surrounded by so many Man that it has no other choice?
   entities = df.columns.tolist()
@@ -574,8 +575,8 @@ def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
 
 def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
     if my_path is None:
-        pdb_files = os.listdir(f"{global_path}{glycan}")
-        pdb_files = sorted(f"{global_path}{glycan}/{pdb}" for pdb in pdb_files if stereo in pdb)
+        pdb_files = os.listdir(global_path / glycan)
+        pdb_files = sorted(global_path / glycan / pdb for pdb in pdb_files if stereo in pdb)
     else:
         pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
     sasa_values = {}
@@ -602,8 +603,8 @@ def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
     # Create DataFrame
     df_data = {
         'Monosaccharide_id': [], 'Monosaccharide': [],
-        'Mean Score': [], 'Median Score': [],
-        'Weighted Score': [], 'Standard Deviation': [],
+        'Mean SASA': [], 'Median SASA': [],
+        'Weighted SASA': [], 'Standard Deviation': [],
         'Coefficient of Variation': []
     }
     for resSeq, data in stats.items():
@@ -611,15 +612,15 @@ def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
         mean = np.mean(values)
         df_data['Monosaccharide_id'].append(resSeq)
         df_data['Monosaccharide'].append(data['resName'])
-        df_data['Mean Score'].append(mean)
-        df_data['Median Score'].append(np.median(values))
-        df_data['Weighted Score'].append(np.average(values, weights=weights))
+        df_data['Mean SASA'].append(mean)
+        df_data['Median SASA'].append(np.median(values))
+        df_data['Weighted SASA'].append(np.average(values, weights=weights))
         std = np.std(values)
         df_data['Standard Deviation'].append(std)
         df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
     table = pd.DataFrame(df_data)
     # Update monosaccharide names using mapping
-    df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5, stereo=stereo)
+    df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5)
     if not df.empty:
         mapping_dict = df.set_index('residue_number')['IUPAC'].to_dict()
         table['Monosaccharide'] = table['Monosaccharide_id'].map(mapping_dict)
@@ -1105,6 +1106,7 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
     """
     residue = df[df['residue_number'] == residue_number]
     mono_type = residue['monosaccharide'].iloc[0]
+    is_l_sugar = mono_type in {'FUC', 'RAM', 'ARA'}
     # Get ring atoms based on monosaccharide type
     is_sialic = 'SIA' in mono_type
     if is_sialic:  # 9-atom sialic acid rings
@@ -1160,7 +1162,9 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
         )) % 360 for m in range(n//2)]
     else:
         # For 6-membered rings
-        theta = np.degrees(np.arccos(qm[1] / Q))
+        q2 = qm[1]  # Second puckering coordinate
+        q3 = qm[2]  # Third puckering coordinate
+        theta = np.degrees(np.arctan2(q2, q3))
     # Determine conformation
     conformation = "Unknown"
     if is_sialic:
@@ -1181,9 +1185,9 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
             conformation = "S3,5"  # Most common skew form
     else:
         if theta < 45:
-            conformation = "4C1"
+            conformation = "4C1" if not is_l_sugar else "1C4"
         elif theta > 135:
-            conformation = "1C4"
+            conformation = "1C4" if not is_l_sugar else "4C1"
         else:
             # Check for boat/skew-boat
             boat_types = {
@@ -1222,6 +1226,8 @@ def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH'])
     Returns:
         DataFrame with ring parameters for each residue
     """
+    if len(df) < 1:
+        return pd.DataFrame(columns=['residue', 'monosaccharide', 'Q', 'theta', 'phi', 'conformation'])
     results = []
     residues = df.groupby('residue_number')['monosaccharide'].first()
     for res_num, mono_type in residues.items():
