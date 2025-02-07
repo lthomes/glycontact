@@ -55,26 +55,34 @@ def get_glycoshape_IUPAC(fresh=False) :
         return set(entry["iupac"] for entry in glycoshape_mirror.values())
 
 
-def download_from_glycoshape(my_path, IUPAC):
+def download_from_glycoshape(IUPAC):
     # Download pdb files given an IUPAC sequence that exists in the glycoshape database
-    if ')' not in IUPAC:
-       print('This IUPAC corresponds to a single monosaccharide: ignored')
-       return False
     if IUPAC[-1]==']':
        print('This IUPAC is not formatted properly: ignored')
        return False
-    outpath = f'{my_path}/{IUPAC}'
+    outpath = global_path / IUPAC
     IUPAC_name = quote(IUPAC)
     os.makedirs(outpath, exist_ok=True)
+    max_cluster = None
     for linktype in ['alpha', 'beta']:
-        for i in range(0, 500):
+        for i in range(0, 200):
+            if max_cluster is not None and i > max_cluster:
+                break
             output = f'_{linktype}_{i}.pdb'
             url = f'https://glycoshape.org/database/{IUPAC_name}/PDB_format_ATOM/cluster{i}_{linktype}.PDB.pdb'
-            if "404 Not Found" in subprocess.run(f'curl "{url}"', shell=True, capture_output=True, text=True).stdout:
+            response = subprocess.run(f'curl "{url}"', shell=True, capture_output=True, text=True).stdout
+            if "404 Not Found" in response:
+                if max_cluster is None:
+                    max_cluster = i - 1
                 break
+            # Only save if it's not a 404
             subprocess.run(f'curl -o {output} "{url}"', shell=True)
-            new_name = f'{IUPAC}{output}'
-            os.rename(output, new_name)
+            try:
+                new_name = f'{IUPAC}{output}'
+                os.rename(output, new_name)
+            except:  # If filename is too long
+                new_name = f'cluster{i}_{linktype}.PDB.pdb'
+                os.rename(output, new_name)
             shutil.move(new_name, outpath)
 
 
@@ -232,8 +240,10 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     Returns:
     - pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' representing interactions.
     """
+    # First check if we only have one monosaccharide
+    unique_residues = coordinates_df['residue_number'].nunique()
     carbon_mask = coordinates_df['atom_name'].isin(['C1', 'C2'])
-    oxygen_mask = coordinates_df['element'] == 'O'
+    oxygen_mask = coordinates_df['atom_name'].str.startswith('O')
     carbons = coordinates_df[carbon_mask]
     oxygens = coordinates_df[oxygen_mask]
     c_coords = carbons[['x', 'y', 'z']].values
@@ -247,6 +257,20 @@ def extract_binary_interactions_from_PDB(coordinates_df):
                 zip(oxygens['residue_number'], oxygens['monosaccharide'], 
                     oxygens['atom_name'])]
     interactions = []
+    if unique_residues == 2:
+        # Find C1 of the monosaccharide and O1 of ROH
+        for i, (c_coord, c_res, c_label) in enumerate(zip(c_coords, c_residues, c_labels)):
+            if carbons.iloc[i]['monosaccharide'] != 'ROH' and carbons.iloc[i]['atom_name'] == 'C1':
+                roh_oxygens = oxygens[oxygens['monosaccharide'] == 'ROH']
+                if not roh_oxygens.empty:
+                    roh_coord = roh_oxygens[['x', 'y', 'z']].values[0]
+                    distance = np.abs(roh_coord - c_coord).sum()
+                    interactions.append({
+                        'Atom': c_label,
+                        'Column': f"{roh_oxygens['residue_number'].iloc[0]}_ROH_O1",
+                        'Value': distance
+                    })
+        return pd.DataFrame(interactions)
     for i, (c_coord, c_res, c_label) in enumerate(zip(c_coords, c_residues, c_labels)):
         # Compute all distances
         distances = np.abs(o_coords - c_coord).sum(axis=1)
@@ -259,7 +283,13 @@ def extract_binary_interactions_from_PDB(coordinates_df):
                 'Column': o_labels[min_idx],
                 'Value': distances[min_idx]
             })
-    return pd.DataFrame(interactions)
+    df =  pd.DataFrame(interactions)
+    # Extract source and target monosaccharides
+    df['source_mono'] = df['Atom'].apply(lambda x: '_'.join(x.split('_')[:2]))
+    df['target_mono'] = df['Column'].apply(lambda x: '_'.join(x.split('_')[:2]))
+    # Group by monosaccharide pairs and keep minimum distance
+    result = df.loc[df.groupby(['source_mono', 'target_mono'])['Value'].idxmin()]
+    return result[['Atom', 'Column', 'Value']].reset_index(drop=True)
 
 
 def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
@@ -580,6 +610,7 @@ def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
     else:
         pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
     weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
+    weights = np.tile(weights, 2) if len(weights) != len(pdb_files) else weights
     df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5)
     residue_modifications = df.set_index('residue_number')['IUPAC'].to_dict()
     # Process each PDB file
