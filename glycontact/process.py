@@ -579,20 +579,41 @@ def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
         pdb_files = sorted(global_path / glycan / pdb for pdb in pdb_files if stereo in pdb)
     else:
         pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
-    sasa_values = {}
-    cluster_frequencies = get_all_clusters_frequency(fresh=fresh)[glycan]
-    weights = np.array([n / 100 for n in cluster_frequencies])
+    weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
+    df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5)
+    residue_modifications = df.set_index('residue_number')['IUPAC'].to_dict()
     # Process each PDB file
+    sasa_values = {}
     for pdb_file in pdb_files:
         structure = md.load(pdb_file)
         sasa = md.shrake_rupley(structure, mode='atom')
         # Group SASA by residue
-        mono_sasa = {}
+        mono_sasa, modification_to_parent = {}, {}
+        # First pass: identify modification groups and their parent residues
+        for res in structure.topology.residues:
+            if res.name == 'SO3':
+                # The parent is typically the residue before it
+                parent_resSeq = res.resSeq - 1
+                modification_to_parent[res.resSeq] = parent_resSeq
+        # Second pass: calculate SASA value
         for atom in structure.topology.atoms:
             res = atom.residue
-            if res.resSeq not in mono_sasa:
-                mono_sasa[res.resSeq] = {'resName': res.name, 'sasa': 0}
-            mono_sasa[res.resSeq]['sasa'] += sasa[0][atom.index]
+            res_seq = res.resSeq
+            # If this is a modification residue, get its parent's resSeq
+            if res.name == 'SO3' and res_seq in modification_to_parent:
+                parent_resSeq = modification_to_parent[res_seq]
+                if parent_resSeq not in mono_sasa:
+                    mono_sasa[parent_resSeq] = {
+                        'resName': residue_modifications.get(parent_resSeq, 'NAG'),  # Use IUPAC name if available
+                        'sasa': 0
+                    }
+                mono_sasa[parent_resSeq]['sasa'] += sasa[0][atom.index]
+                continue
+            if res.name == 'SO3':
+                continue
+            if res_seq not in mono_sasa:
+                mono_sasa[res_seq] = {'resName': residue_modifications.get(res_seq, res.name), 'sasa': 0}
+            mono_sasa[res_seq]['sasa'] += sasa[0][atom.index]  # Add SASA contribution
         sasa_values[pdb_file] = mono_sasa
     # Calculate statistics
     first_pdb = sasa_values[pdb_files[0]]
@@ -618,13 +639,7 @@ def get_sasa_table(glycan, stereo = 'alpha', my_path=None, fresh=False) :
         std = np.std(values)
         df_data['Standard Deviation'].append(std)
         df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
-    table = pd.DataFrame(df_data)
-    # Update monosaccharide names using mapping
-    df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5)
-    if not df.empty:
-        mapping_dict = df.set_index('residue_number')['IUPAC'].to_dict()
-        table['Monosaccharide'] = table['Monosaccharide_id'].map(mapping_dict)
-    return table
+    return pd.DataFrame(df_data)
 
 
 def convert_glycan_to_class(glycan):
