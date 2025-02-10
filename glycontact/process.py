@@ -25,7 +25,7 @@ import mdtraj as md
 # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
 # GalNAc is recorded as "GLC" which is wrong: need for a checker function that counts the number of atoms - Glc = 21 (<25), GalNAc = 28 (>25)
 map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a',
-              'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'Fuc(a', 'GYE':'dFucf(b',
+              'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'D-Fuc(a', 'GYE':'dFucf(b',
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b', '2kA': 'L-Gul(a', '0mA': 'L-Man(a',
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
               'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
@@ -35,7 +35,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
               'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
               "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a", 
-              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(b", "MAN3MEX":"Man3Me(a", 
+              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(a", "MAN3MEX":"Man3Me(a", 
               "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a",
               "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
 
@@ -252,7 +252,7 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     unique_residues = coordinates_df['residue_number'].nunique()
     carbon_mask = (((~coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE', na=False)) & (coordinates_df['atom_name'] == 'C1')) |
     ((coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE', na=False)) & (coordinates_df['atom_name'] == 'C2')))
-    oxygen_mask = coordinates_df['atom_name'].isin(['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8'])
+    oxygen_mask = coordinates_df['atom_name'].isin(['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9'])
     carbons = coordinates_df[carbon_mask]
     oxygens = coordinates_df[oxygen_mask]
     c_coords = carbons[['x', 'y', 'z']].values
@@ -1132,15 +1132,17 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
             donor = df[df['residue_number'] == donor_res]
             acceptor = df[df['residue_number'] == acceptor_res]
             # Special handling for sialic acid
-            if 'SIA' in donor_key:
+            if any(mono in donor_key for mono in {'SIA', 'NGC'}):
                 o5_name = 'O6'  # In sialic acid, O5 is actually O6
                 o_pos = 'O1A'   # Sialic acid uses O1A for glycosidic bond
+                c1_name = 'C2'      # Use C2 instead of C1 for sialic acid
             else:
                 o5_name = 'O5'
                 o_pos = f'O{pos}'
+                c1_name = 'C1'      # Normal C1 for other residues
             coords_phi = [
                 donor[donor['atom_name'] == o5_name].iloc[0][['x', 'y', 'z']].values.astype(float),
-                donor[donor['atom_name'] == 'C1'].iloc[0][['x', 'y', 'z']].values.astype(float),
+                donor[donor['atom_name'] == c1_name].iloc[0][['x', 'y', 'z']].values.astype(float),
                 donor[donor['atom_name'] == o_pos].iloc[0][['x', 'y', 'z']].values.astype(float),
                 acceptor[acceptor['atom_name'] == f'C{pos}'].iloc[0][['x', 'y', 'z']].values.astype(float)
             ]
