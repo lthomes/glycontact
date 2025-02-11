@@ -29,7 +29,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b', '2kA': 'L-Gul(a', '0mA': 'L-Man(a',
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
               'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
-              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a',
+              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a',
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
               'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
@@ -618,6 +618,7 @@ def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
 
 
 def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
+    mods = {'SO3', 'ACX', 'MEX'}
     if stereo is None:
         stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
     if my_path is None:
@@ -638,7 +639,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         mono_sasa, modification_to_parent = {}, {}
         # First pass: identify modification groups and their parent residues
         for res in structure.topology.residues:
-            if res.name == 'SO3':
+            if res.name in mods:
                 # The parent is typically the residue before it
                 parent_resSeq = res.resSeq - 1
                 modification_to_parent[res.resSeq] = parent_resSeq
@@ -647,7 +648,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
             res = atom.residue
             res_seq = res.resSeq
             # If this is a modification residue, get its parent's resSeq
-            if res.name == 'SO3' and res_seq in modification_to_parent:
+            if res.name in mods and res_seq in modification_to_parent:
                 parent_resSeq = modification_to_parent[res_seq]
                 if parent_resSeq not in mono_sasa:
                     mono_sasa[parent_resSeq] = {
@@ -656,7 +657,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
                     }
                 mono_sasa[parent_resSeq]['sasa'] += sasa[0][atom.index]
                 continue
-            if res.name == 'SO3':
+            if res.name in mods:
                 continue
             if res_seq not in mono_sasa:
                 mono_sasa[res_seq] = {'resName': residue_modifications.get(res_seq, res.name), 'sasa': 0}
@@ -1128,37 +1129,32 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
         acceptor_res = int(acceptor_id.split('_')[0])
         if df[df['residue_number'] == acceptor_res]['monosaccharide'].iloc[0] == 'ROH':
             continue
-        try:
-            donor = df[df['residue_number'] == donor_res]
-            acceptor = df[df['residue_number'] == acceptor_res]
-            # Special handling for sialic acid
-            if any(mono in donor_key for mono in {'SIA', 'NGC'}):
-                o5_name = 'O6'  # In sialic acid, O5 is actually O6
-                o_pos = 'O1A'   # Sialic acid uses O1A for glycosidic bond
-                c1_name = 'C2'      # Use C2 instead of C1 for sialic acid
-            else:
-                o5_name = 'O5'
-                o_pos = f'O{pos}'
-                c1_name = 'C1'      # Normal C1 for other residues
-            coords_phi = [
-                donor[donor['atom_name'] == o5_name].iloc[0][['x', 'y', 'z']].values.astype(float),
-                donor[donor['atom_name'] == c1_name].iloc[0][['x', 'y', 'z']].values.astype(float),
-                donor[donor['atom_name'] == o_pos].iloc[0][['x', 'y', 'z']].values.astype(float),
-                acceptor[acceptor['atom_name'] == f'C{pos}'].iloc[0][['x', 'y', 'z']].values.astype(float)
-            ]
-            next_c = pos + 1 if pos < 6 else pos - 1
-            coords_psi = [coords_phi[1], coords_phi[2], coords_phi[3],
-                acceptor[acceptor['atom_name'] == f'C{next_c}'].iloc[0][['x', 'y', 'z']].values.astype(float)]
-            results.append({
-                'linkage': f"{donor_key}-{acceptor_id}",
-                'phi': round(calculate_torsion_angle(coords_phi), 2),
-                'psi': round(calculate_torsion_angle(coords_psi), 2),
-                'anomeric_form': aform,
-                'position': pos
-            })
-        except (IndexError, KeyError) as e:
-            print(f"Warning: Skipping {donor_key}-{acceptor_id}: {str(e)}")
-            continue
+        donor = df[df['residue_number'] == donor_res]
+        acceptor = df[df['residue_number'] == acceptor_res]
+        # Special handling for sialic acid
+        if any(mono in donor_key for mono in {'SIA', 'NGC'}):
+            o5_name = 'O6'  # In sialic acid, O5 is actually O6
+            c1_name = 'C2'      # Use C2 instead of C1 for sialic acid
+        else:
+            o5_name = 'O5'
+            c1_name = 'C1'      # Normal C1 for other residues
+        o_pos = f'O{pos}'
+        coords_phi = [
+            donor[donor['atom_name'] == o5_name].iloc[0][['x', 'y', 'z']].values.astype(float),
+            donor[donor['atom_name'] == c1_name].iloc[0][['x', 'y', 'z']].values.astype(float),
+            acceptor[acceptor['atom_name'] == o_pos].iloc[0][['x', 'y', 'z']].values.astype(float),
+            acceptor[acceptor['atom_name'] == f'C{pos}'].iloc[0][['x', 'y', 'z']].values.astype(float)
+        ]
+        next_c = pos + 1 if pos < 6 else pos - 1
+        coords_psi = [coords_phi[1], coords_phi[2], coords_phi[3],
+            acceptor[acceptor['atom_name'] == f'C{next_c}'].iloc[0][['x', 'y', 'z']].values.astype(float)]
+        results.append({
+            'linkage': f"{donor_key}-{acceptor_id}",
+            'phi': round(calculate_torsion_angle(coords_phi), 2),
+            'psi': round(calculate_torsion_angle(coords_psi), 2),
+            'anomeric_form': aform,
+            'position': pos
+        })
     return pd.DataFrame(results)
 
 
