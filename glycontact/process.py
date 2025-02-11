@@ -10,13 +10,15 @@ import subprocess
 import json
 import requests
 import shutil
-import random
+from random import Random
 from io import StringIO
+from tqdm import tqdm
 from pathlib import Path
 from urllib.parse import quote
 from typing import Tuple, Dict, List
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
+from multiprocessing import Pool
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
 from glycowork.motif.annotate import link_find
 from glycowork.motif.processing import canonicalize_iupac
@@ -165,12 +167,12 @@ def focus_table_on_residue(table, residue) :
 
 def get_contact_tables(glycan, stereo=None, level="monosaccharide", my_path=None):
     if stereo is None:
-        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     dfs, _ = annotation_pipeline(glycan, pdb_file=my_path, threshold=3.5, stereo=stereo)
     if level == "monosaccharide":
-        return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs]
+        return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs if len(df) > 0]
     else:
-        return [make_atom_contact_table(df, mode='distance', threshold=200) for df in dfs]
+        return [make_atom_contact_table(df, mode='distance', threshold=200) for df in dfs if len(df) > 0]
 
 
 def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_path=None, fresh=False):
@@ -187,14 +189,17 @@ def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_p
         dfs = get_contact_tables(glycan, stereo, my_path=my_path)
     elif isinstance(glycan, list):
         dfs = glycan
+    if len(dfs) < 1:
+        return pd.DataFrame()
     if stereo is None and isinstance(glycan, str):
-        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     columns = dfs[0].columns
     values_array = np.array([df.values for df in dfs])
     mean_values = np.mean(values_array, axis=0)
     deviations = np.abs(values_array - mean_values)
     if mode == 'weighted':
         weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
+        weights = [1.0]*len(dfs) if len(weights) != len(dfs) else weights
         result = np.average(deviations, weights=weights, axis=0)
     elif mode == 'amplify':
         result = np.sum(deviations, axis=0) ** 2
@@ -213,7 +218,7 @@ def make_correlation_matrix(glycan, stereo=None, my_path=None):
     elif isinstance(glycan, list):
         dfs = glycan
     if stereo is None and isinstance(glycan, str):
-        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     # Create an empty correlation matrix
     corr_sum = np.zeros((len(dfs[0]), len(dfs[0])))
     # Calculate the correlation matrix based on the distances
@@ -233,7 +238,7 @@ def inter_structure_frequency_table(glycan, stereo=None, threshold = 5, my_path=
     elif isinstance(glycan, list):
         dfs = glycan
     if stereo is None and isinstance(glycan, str):
-        stereo = 'beta' if glycan.endswith('GlcNAc') else 'alpha'
+        stereo = 'beta' if glycan.endswith('GlcNAc', 'Glc', 'Xyl') else 'alpha'
     # Apply thresholding and create a new list of transformed DataFrames
     binary_arrays = [df.values < threshold for df in dfs]
     # Sum up the transformed DataFrames to create the final DataFrame
@@ -517,7 +522,7 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
   ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
   ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
   if stereo is None:
-      stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+      stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
   if pdb_file is None:
       pdb_file = os.listdir(global_path / glycan)
       pdb_file = [global_path / glycan / pdb for pdb in pdb_file if stereo in pdb]
@@ -527,11 +532,13 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
   return dfs, int_dicts
 
 
-def get_example_pdb(glycan, stereo=None):
+def get_example_pdb(glycan, stereo=None, rng=None):
+    if rng is None:
+      rng = Random(42)
     if stereo is None:
-      stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+      stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     pdb_file = os.listdir(global_path / glycan)
-    return random.choice([global_path / glycan / pdb for pdb in pdb_file if stereo in pdb])
+    return global_path / glycan / rng.choice([pdb for pdb in pdb_file if stereo in pdb])
 
 
 def monosaccharide_preference_structure(df, monosaccharide, threshold, mode='default'):
@@ -565,7 +572,7 @@ def multi_glycan_monosaccharide_preference_structure(glycan, monosaccharide, ste
   # suffix : 'alpha' or 'beta'
   # glycan_sequence : IUPAC
   if stereo is None:
-      stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+      stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
   mono_tables = get_contact_tables(glycan, stereo=stereo)
   dict_list = [monosaccharide_preference_structure(dist, monosaccharide, 
                                                               threshold, mode) for dist in mono_tables]
@@ -620,7 +627,7 @@ def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
 def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
     mods = {'SO3', 'ACX', 'MEX'}
     if stereo is None:
-        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     if my_path is None:
         pdb_files = os.listdir(global_path / glycan)
         pdb_files = sorted(global_path / glycan / pdb for pdb in pdb_files if stereo in pdb)
@@ -628,7 +635,16 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
     weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
     weights = np.tile(weights, 2) if len(weights) != len(pdb_files) else weights
+    weights = [1.0]*len(pdb_files) if len(weights) != len(pdb_files) else weights
     df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5)
+    if len(df) < 1 and len(pdb_files) > 1:
+        for pdb_file in pdb_files[1:]:
+            df, _ = get_annotation(glycan, pdb_file, threshold=3.5)
+            if len(df) > 0:
+                break
+    if len(df) < 1:
+         return pd.DataFrame(columns=['Monosaccharide_id', 'Monosaccharide', 'Mean SASA', 'Median SASA',
+                                      'Weighted SASA', 'Standard Deviation', 'Coefficient of Variation'])
     residue_modifications = df.set_index('residue_number')['IUPAC'].to_dict()
     # Process each PDB file
     sasa_values = {}
@@ -761,10 +777,7 @@ def global_monosaccharide_instability(variability_table, mode='sum'):
     # plot monolink variability for all clusters of a given glycan
     # possible formats: png, pdf
     # mode: sum, mean
-    if mode == 'sum':
-        residue_stability = variability_table.sum()
-    else:  # mode == 'mean'
-        residue_stability = variability_table.mean()
+    residue_stability = variability_table.sum() if mode == 'sum' else variability_table.mean()
     return sorted(residue_stability.items(), key=lambda x: x[1])
 
 
@@ -772,27 +785,13 @@ def compute_merge_SASA_flexibility(glycan, flex_mode, global_flex_mode='mean', s
     # flex_mode : standard, amplify, weighted
     # global_flex_mode : sum, mean
     if stereo is None:
-        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
-    try:
-        sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
-    except:
-        sasa = pd.DataFrame()
-        print('SASA failed, continuing with empty table')
-    try:
-        flex = inter_structure_variability_table(glycan, stereo=stereo, mode=flex_mode, my_path=None)
-        mean_flex = global_monosaccharide_instability(flex, mode=global_flex_mode)
-        flex_col = f'{flex_mode}_{global_flex_mode}_flexibility'
-        flex_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_col])
-        flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
-    except:
-        if sasa.empty:
-            return pd.DataFrame(columns=[
-                'Monosaccharide_id', 'Monosaccharide', 'Mean SASA', 'Median SASA',
-                'Weighted SASA', 'Standard Deviation', 'Coefficient of Variation',
-                f'{flex_mode}_{global_flex_mode}_flexibility'
-            ])
-        flex_df = pd.DataFrame(columns=['Monosaccharide_id', f'{flex_mode}_{global_flex_mode}_flexibility'])
-        print('Flex calculation failed')
+        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
+    flex = inter_structure_variability_table(glycan, stereo=stereo, mode=flex_mode, my_path=None)
+    mean_flex = global_monosaccharide_instability(flex, mode=global_flex_mode)
+    flex_col = f'{flex_mode}_{global_flex_mode}_flexibility'
+    flex_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_col])
+    flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
     if sasa.empty:
         return flex_df
     return pd.merge(sasa, flex_df[['Monosaccharide_id', f'{flex_mode}_{global_flex_mode}_flexibility']], 
@@ -938,7 +937,7 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact) -> n
 
 def get_structure_graph(glycan, stereo=None):
     if stereo is None:
-        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc'}) else 'alpha'
+        stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     merged = compute_merge_SASA_flexibility(glycan, 'weighted', stereo=stereo)
     res, datadict = get_annotation(glycan, get_example_pdb(glycan, stereo=stereo), threshold=3.5)
     ring_conf = get_ring_conformations(res)
@@ -987,7 +986,7 @@ def get_score_list(datatable, glycan, column):
     return new_scores if len(new_scores) == len(scores) else scores
 
 
-def extract_glycan_coords(pdb_filepath, residue_ids=None):
+def extract_glycan_coords(pdb_filepath, residue_ids=None, main_chain_only=False):
     """
     Extract main chain coordinates of glycan residues from PDB file.
     
@@ -1002,12 +1001,15 @@ def extract_glycan_coords(pdb_filepath, residue_ids=None):
     if residue_ids:
         df = df[df['residue_number'].isin(residue_ids)]
     # Get common atoms present in most glycans
-    common_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
+    if main_chain_only:
+        common_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
+        df = df[df['atom_name'].isin(common_atoms)]
+    else:
+        df = df[~df['atom_name'].str.startswith('H')]
     coords, atom_labels = [], []
     for _, row in df.iterrows():
-        if row['atom_name'] in common_atoms:
-            coords.append([row['x'], row['y'], row['z']])
-            atom_labels.append(f"{row['residue_number']}_{row['monosaccharide']}_{row['atom_name']}")
+        coords.append([row['x'], row['y'], row['z']])
+        atom_labels.append(f"{row['residue_number']}_{row['monosaccharide']}_{row['atom_name']}")
     return np.array(coords), atom_labels
 
 
@@ -1060,7 +1062,7 @@ def align_point_sets(mobile_coords, ref_coords):
     return transformed_coords, rmsd
 
 
-def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=None):
+def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=None, main_chain_only=False):
     """
     Superimpose two glycan structures and calculate RMSD.
     Args:
@@ -1077,8 +1079,8 @@ def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=
             - mobile_labels: Atom labels from mobile structure
     """
     # Extract coordinates
-    ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues)
-    mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues)
+    ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues, main_chain_only=main_chain_only)
+    mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues, main_chain_only=main_chain_only)
     transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords)
     return {
         'ref_coords': ref_coords,
@@ -1087,6 +1089,56 @@ def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=
         'ref_labels': ref_labels,
         'mobile_labels': mobile_labels
     }
+
+
+def _process_single_glycan(args):
+    glycan, query_coords, rmsd_cutoff = args
+    best_rmsd = float('inf')
+    best_structure = None
+    pdb_files = list((global_path / glycan).glob('*.pdb'))
+    for pdb_file in pdb_files:
+        try:
+            coords, _ = extract_glycan_coords(pdb_file)
+            if abs(len(coords) - len(query_coords)) <= 5:
+                transformed, rmsd = align_point_sets(coords, query_coords)
+                if rmsd < best_rmsd:
+                    best_rmsd = rmsd
+                    best_structure = pdb_file
+        except Exception:
+            continue
+    return glycan, best_rmsd, best_structure
+
+
+def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_cutoff=2.0):
+    """Search for structurally similar glycans by comparing against all available 
+    conformers/structures and keeping the best match for each glycan.
+    Args:
+        query_glycan: PDB file or coordinates of query structure
+        pdb_path: Optional specific path to query PDB file
+        glycan_database: List of candidate glycan structures
+        rmsd_cutoff: Maximum RMSD to consider as similar
+    Returns:
+        List of (glycan_id, rmsd, best_structure) tuples sorted by similarity
+    """
+    glycans = get_glycoshape_IUPAC() if glycan_database is None else glycan_database
+    glycans = [g for g in glycans if (global_path / g).exists() and any((global_path / g).iterdir()) and g!=query_glycan]
+    # Get query coordinates once
+    query_glycan = get_example_pdb(query_glycan) if pdb_path is None else pdb_path
+    query_coords, _ = extract_glycan_coords(query_glycan)
+    # Prepare args for parallel processing
+    process_args = [(g, query_coords, rmsd_cutoff) for g in glycans]
+    results = []
+    with Pool() as pool:
+        for glycan, rmsd, best_structure in tqdm(pool.imap_unordered(_process_single_glycan, process_args),
+                                                 total=len(glycans), desc="Searching for similar glycans"):
+            if rmsd <= rmsd_cutoff and best_structure is not None:
+                conformer = '_'.join(best_structure.stem.split('_')[-2:])
+                results.append({
+                    'glycan': glycan,
+                    'rmsd': round(rmsd, 3),
+                    'conformer': conformer
+                })
+    return sorted(results, key=lambda x: x['rmsd'])
 
 
 def calculate_torsion_angle(coords: List[List[float]]) -> float:
