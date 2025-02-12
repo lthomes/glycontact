@@ -626,6 +626,7 @@ def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
 
 def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
     mods = {'SO3', 'ACX', 'MEX'}
+    df = []
     if stereo is None:
         stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     if my_path is None:
@@ -636,12 +637,10 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
     weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
     weights = np.tile(weights, 2) if len(weights) != len(pdb_files) else weights
     weights = [1.0]*len(pdb_files) if len(weights) != len(pdb_files) else weights
-    df, _ = get_annotation(glycan, pdb_files[0], threshold=3.5)
-    if len(df) < 1 and len(pdb_files) > 1:
-        for pdb_file in pdb_files[1:]:
-            df, _ = get_annotation(glycan, pdb_file, threshold=3.5)
-            if len(df) > 0:
-                break
+    for pdb_file in pdb_files:
+        df, _ = get_annotation(glycan, pdb_file, threshold=3.5)
+        if len(df) > 0:
+            break
     if len(df) < 1:
          return pd.DataFrame(columns=['Monosaccharide_id', 'Monosaccharide', 'Mean SASA', 'Median SASA',
                                       'Weighted SASA', 'Standard Deviation', 'Coefficient of Variation'])
@@ -1062,7 +1061,7 @@ def align_point_sets(mobile_coords, ref_coords):
     return transformed_coords, rmsd
 
 
-def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=None, main_chain_only=False):
+def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_residues=None, main_chain_only=False):
     """
     Superimpose two glycan structures and calculate RMSD.
     Args:
@@ -1078,17 +1077,32 @@ def superimpose_glycans(ref_pdb, mobile_pdb, ref_residues=None, mobile_residues=
             - ref_labels: Atom labels from reference structure
             - mobile_labels: Atom labels from mobile structure
     """
-    # Extract coordinates
-    ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues, main_chain_only=main_chain_only)
-    mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues, main_chain_only=main_chain_only)
-    transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords)
-    return {
-        'ref_coords': ref_coords,
-        'transformed_coords': transformed_coords,
-        'rmsd': rmsd,
-        'ref_labels': ref_labels,
-        'mobile_labels': mobile_labels
-    }
+    if '.' not in ref_glycan+mobile_glycan:
+        ref_conformers = list((global_path / ref_glycan).glob('*.pdb'))
+        mobile_conformers = list((global_path / mobile_glycan).glob('*.pdb'))
+    else:
+        ref_conformers = [ref_glycan]
+        mobile_conformers = [mobile_glycan]
+    best_rmsd = float('inf')
+    best_result = None
+    # Iterate over all possible pairs of conformers
+    for ref_pdb in ref_conformers:  # Extract coordinates for reference conformer
+        ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues, main_chain_only)
+        for mobile_pdb in mobile_conformers:  # Extract coordinates for mobile conformer
+            mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues, main_chain_only)
+            transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords)
+            if rmsd < best_rmsd:
+                best_rmsd = rmsd
+                best_result = {
+                    'ref_coords': ref_coords,
+                    'transformed_coords': transformed_coords,
+                    'rmsd': rmsd,
+                    'ref_labels': ref_labels,
+                    'mobile_labels': mobile_labels,
+                    'ref_conformer': '_'.join(ref_pdb.stem.split('_')[-2:]),
+                    'mobile_conformer': '_'.join(mobile_pdb.stem.split('_')[-2:])
+                }
+    return best_result
 
 
 def _process_single_glycan(args):

@@ -6,12 +6,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imageio
 import os
+import py3Dmol
 from io import BytesIO
 from pathlib import Path
 from scipy.cluster import hierarchy
 from collections import Counter
 from IPython.display import Image, display
-from glycontact.process import inter_structure_variability_table, get_structure_graph, monosaccharide_preference_structure
+from glycontact.process import inter_structure_variability_table, get_structure_graph, monosaccharide_preference_structure, map_dict
 from glycowork.motif.draw import GlycoDraw
 
 
@@ -133,45 +134,339 @@ def show_monosaccharide_preference_structure(df, monosaccharide, threshold, mode
   plt.show()
 
 
-def plot_superimposed_glycans(superposition_result, output_file=None, show_labels=True):
+def add_snfg_symbol(view, center, mono_name, is_ref=True):
+    """Add 3D-SNFG symbol at the center of a monosaccharide.
+    Args:
+        view: py3Dmol view object
+        center: numpy array of x,y,z coordinates
+        mono_name: Name of monosaccharide (e.g., 'Neu5Ac', 'Gal', 'GlcNAc')
+        is_ref: Whether this is the reference structure (affects color scheme)
     """
-    Create a 3D plot of superimposed glycan structures.
-    
+    # Define SNFG mapping (monosaccharide to shape and color)
+    snfg_map = {
+        'Neu5Ac': {'shape': 'diamond', 'color': '#A15989'},  # Purple diamond for sialic acid
+        'Neu5Gc': {'shape': 'diamond', 'color': '#91D3E3'},  # Turqoise diamond for sialic acid
+        'GlcNAc': {'shape': 'cube', 'color': '#0385AE'},     # Blue cube for N-acetylglucosamine
+        'GalNAc': {'shape': 'cube', 'color': '#FCC326'},     # Yellow cube for N-acetylgalactosamine
+        'Gal': {'shape': 'sphere', 'color': '#FCC326'},      # Yellow sphere for galactose
+        'Glc': {'shape': 'sphere', 'color': '#0385AE'},      # Blue sphere for glucose
+        'Man': {'shape': 'sphere', 'color': '#058F60'},      # Green sphere for mannose
+        'Fuc': {'shape': 'cone', 'color': '#C23537'},     # Red triangle for fucose
+        'Rha': {'shape': 'cone', 'color': '#058F60'}     # Green triangle for rhamnose
+    }
+    if mono_name not in snfg_map:
+        return  # Skip if monosaccharide not in mapping
+    symbol_spec = snfg_map[mono_name]
+    color = symbol_spec['color']
+    # Make reference structure slightly transparent to distinguish
+    alpha = 0.85 if is_ref else 1.0
+    # Add the appropriate shape based on SNFG specification
+    if symbol_spec['shape'] == 'sphere':
+        view.addSphere({
+            'center': {'x': center[0], 'y': center[1], 'z': center[2]},
+            'radius': 0.5,  # Larger than atom spheres
+            'color': color,
+            'alpha': alpha
+        })
+    elif symbol_spec['shape'] == 'cube':
+        # Create cube using eight vertices and faces
+        size = 0.8  # Size of cube
+        view.addBox({
+            'center': {'x': center[0], 'y': center[1], 'z': center[2]},
+            'dimensions': {'w': size, 'h': size, 'd': size},
+            'color': color,
+            'alpha': alpha
+        })
+    elif symbol_spec['shape'] == 'diamond':
+        # Create an octahedron (diamond) using cylinders for edges
+        size = 0.6  # Adjust size
+        # Define the six vertices of an octahedron relative to the center
+        vertices = np.array([
+            [center[0] + size, center[1], center[2]],       # +X
+            [center[0] - size, center[1], center[2]],       # -X
+            [center[0], center[1] + size, center[2]],       # +Y
+            [center[0], center[1] - size, center[2]],       # -Y
+            [center[0], center[1], center[2] + size],       # +Z
+            [center[0], center[1], center[2] - size]        # -Z
+        ])
+        # Define the 12 edges by specifying pairs of vertices
+        edges = [
+            (0, 2), (0, 3), (0, 4), (0, 5),
+            (1, 2), (1, 3), (1, 4), (1, 5),
+            (2, 4), (2, 5),
+            (3, 4), (3, 5)
+        ]
+        # First add surface for filled faces
+        vertices_list = vertices.tolist()
+        faces = [
+            [0, 2, 4], [0, 4, 3], [0, 3, 5], [0, 5, 2],  # Right half
+            [1, 2, 4], [1, 4, 3], [1, 3, 5], [1, 5, 2]   # Left half
+        ]
+        # Then add thinner cylinders for edges
+        for edge in edges:
+            start = vertices[edge[0]]
+            end = vertices[edge[1]]
+            view.addCylinder({
+                'start': {'x': start[0], 'y': start[1], 'z': start[2]},
+                'end': {'x': end[0], 'y': end[1], 'z': end[2]},
+                'radius': 0.1,
+                'color': color,
+                'opacity': alpha
+            })
+    elif symbol_spec['shape'] == 'cone':
+        # Create a cone using addArrow
+        size = 0.6  # Adjust size
+        height = size * 1.5
+        radius = size / 2
+        # Define the direction of the cone (e.g., along the +Z axis)
+        direction = np.array([0, 1, 0])
+        # Define start and end points
+        start = center.tolist()
+        end = (center + direction * height).tolist()
+        view.addArrow({
+            'start': {'x': start[0], 'y': start[1], 'z': start[2]},
+            'end': {'x': end[0], 'y': end[1], 'z': end[2]},
+            'radius': radius,  # Controls the base radius of the cone
+            'mid': 0.01,      # Make arrow almost entirely cone
+            'color': color,
+            'alpha': alpha,
+            'resolution': 32  # Higher resolution for smoother cone
+        })
+
+
+def plot_superimposed_glycans(superposition_result, filepath='', animate=True, rotation_speed=1,
+                              show_labels=False, show_snfg=True):
+    """Create a 3D plot of superimposed glycan structures.
     Args:
         superposition_result: Output from superimpose_glycans()
-        output_file: Optional path to save plot
+        filepath: Optional path to save plot
         show_labels: Whether to show atom labels
     """
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.add_subplot(111, projection='3d')
-    # Plot reference structure
+    view = py3Dmol.view(width=800, height=800)
+    # Get coordinates and labels
     ref_coords = superposition_result['ref_coords']
-    ax.scatter(ref_coords[:, 0], ref_coords[:, 1], ref_coords[:, 2],
-              c='blue', marker='o', s=100, label='Reference', alpha=0.7)
-    # Plot transformed mobile structure
     transformed = superposition_result['transformed_coords']
-    ax.scatter(transformed[:, 0], transformed[:, 1], transformed[:, 2],
-              c='red', marker='o', s=100, label='Mobile (aligned)', alpha=0.7)
-    # Add labels if requested
-    if show_labels:
-        # Plot reference labels
-        for i, label in enumerate(superposition_result['ref_labels']):
-            ax.text(ref_coords[i, 0], ref_coords[i, 1], ref_coords[i, 2],
-                   label, fontsize=8, color='blue')
-        # Plot mobile labels
-        for i, label in enumerate(superposition_result['mobile_labels']):
-            ax.text(transformed[i, 0], transformed[i, 1], transformed[i, 2],
-                   label, fontsize=8, color='red')
-    # Add RMSD to title
+    ref_labels = superposition_result['ref_labels']
+    mobile_labels = superposition_result['mobile_labels']
+    # More contrasting color schemes
+    ref_colors = {
+        'C': '0x0055BB',  # Strong blue for carbon
+        'O': '0x000088',  # Very dark blue for oxygen
+        'N': '0x88BBFF'   # Light blue for nitrogen
+    }
+    mobile_colors = {
+        'C': '0xFF6600',  # Bright orange for carbon
+        'O': '0xCC3300',  # Dark red-orange for oxygen
+        'N': '0xFFBB44'   # Light orange for nitrogen
+    }
+    def get_mono_info(label):
+        parts = label.split('_')
+        return parts[0], parts[1]  # idx, name
+    
+    def get_atom_type(label):
+        return label.split('_')[-1][0]  # First character of atom name
+    
+    def add_structure(coords, labels, is_ref=True):
+        colors = ref_colors if is_ref else mobile_colors
+        bond_color = ref_colors['C'] if is_ref else mobile_colors['C']
+        
+        # Group atoms by monosaccharide
+        mono_groups = {}
+        for i, (coord, label) in enumerate(zip(coords, labels)):
+            mono_id, mono_name = get_mono_info(label)
+            if mono_id not in mono_groups:
+                mono_groups[mono_id] = {'atoms': [], 'center': [], 'name': mono_name}
+            atom_name = label.split('_')[-1]
+            mono_groups[mono_id]['atoms'].append({
+                'coord': coord,
+                'name': atom_name,
+                'type': get_atom_type(label),
+                'idx': i,
+                'full_label': label
+            })
+        # Add atoms and create bonds for each monosaccharide
+        for mono_id, group in mono_groups.items():
+            atoms = group['atoms']
+            mono_name = group['name']
+            is_sialic = mono_name in ['SIA', 'NGC']
+            # Create lookup for atoms by name
+            atom_lookup = {atom['name']: atom for atom in atoms}
+            # Add atoms with proper coloring
+            for atom in atoms:
+                view.addSphere({
+                    'center': {'x': atom['coord'][0], 'y': atom['coord'][1], 'z': atom['coord'][2]},
+                    'radius': 0.25,
+                    'color': colors[atom['type']],
+                    'alpha': 0.85
+                })
+            # Handle ring bonds differently for sialic acids
+            if is_sialic:
+                # Sialic acid ring bonds (C2-C3-C4-C5-C6-O6-C2)
+                ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6']
+                for i in range(len(ring_atoms)-1):
+                    if ring_atoms[i] in atom_lookup and ring_atoms[i+1] in atom_lookup:
+                        c1 = atom_lookup[ring_atoms[i]]['coord']
+                        c2 = atom_lookup[ring_atoms[i+1]]['coord']
+                        view.addCylinder({
+                            'start': {'x': c1[0], 'y': c1[1], 'z': c1[2]},
+                            'end': {'x': c2[0], 'y': c2[1], 'z': c2[2]},
+                            'radius': 0.08,
+                            'color': bond_color,
+                            'alpha': 0.85
+                        })
+                # Add O6-C2 and O6-C6 bonds
+                if 'O6' in atom_lookup:
+                    for carbon in ['C2', 'C6']:
+                        if carbon in atom_lookup:
+                            o6 = atom_lookup['O6']['coord']
+                            c = atom_lookup[carbon]['coord']
+                            view.addCylinder({
+                                'start': {'x': o6[0], 'y': o6[1], 'z': o6[2]},
+                                'end': {'x': c[0], 'y': c[1], 'z': c[2]},
+                                'radius': 0.08,
+                                'color': bond_color,
+                                'alpha': 0.85
+                            })
+            else:
+                # Standard pyranose ring bonds
+                carbons = ['C1', 'C2', 'C3', 'C4', 'C5']
+                for i in range(len(carbons)-1):
+                    if carbons[i] in atom_lookup and carbons[i+1] in atom_lookup:
+                        c1 = atom_lookup[carbons[i]]['coord']
+                        c2 = atom_lookup[carbons[i+1]]['coord']
+                        view.addCylinder({
+                            'start': {'x': c1[0], 'y': c1[1], 'z': c1[2]},
+                            'end': {'x': c2[0], 'y': c2[1], 'z': c2[2]},
+                            'radius': 0.08,
+                            'color': bond_color,
+                            'alpha': 0.85
+                        })
+                # Add ring-closing O5 bonds
+                if 'O5' in atom_lookup:
+                    for carbon in ['C1', 'C5']:
+                        if carbon in atom_lookup:
+                            o5 = atom_lookup['O5']['coord']
+                            c = atom_lookup[carbon]['coord']
+                            view.addCylinder({
+                                'start': {'x': o5[0], 'y': o5[1], 'z': o5[2]},
+                                'end': {'x': c[0], 'y': c[1], 'z': c[2]},
+                                'radius': 0.08,
+                                'color': bond_color,
+                                'alpha': 0.85
+                            })
+
+            # Add all substituent bonds
+            def add_bond(atom1_name, atom2_name):
+                if atom1_name in atom_lookup and atom2_name in atom_lookup:
+                    a1 = atom_lookup[atom1_name]['coord']
+                    a2 = atom_lookup[atom2_name]['coord']
+                    view.addCylinder({
+                        'start': {'x': a1[0], 'y': a1[1], 'z': a1[2]},
+                        'end': {'x': a2[0], 'y': a2[1], 'z': a2[2]},
+                        'radius': 0.08,
+                        'color': bond_color,
+                        'alpha': 0.85
+                    })
+            
+            # Basic O/N substituents
+            for atom in atoms:
+                if atom['name'].startswith(('O', 'N')) and not atom['name'] in ['O5', 'O6']:
+                    carbon_num = atom['name'][-1]
+                    carbon_name = f'C{carbon_num}'
+                    if carbon_name in atom_lookup:
+                        add_bond(atom['name'], carbon_name)
+            # Hydroxymethyl group (C5-C6-O6 in hexoses/HexNAcs)
+            if group['name'] in ['GAL', 'GLC', 'NAG', 'NDG']:
+                add_bond('C5', 'C6')
+                add_bond('C6', 'O6')
+            # Methyl group (C5-C6 in deoxy-hexoses)
+            if group['name'] in ['FUC']:
+                add_bond('C5', 'C6')
+            # N-Acetyl group connections in NAG
+            if group['name'] in ['NAG', 'NDG']:
+                add_bond('C2', 'N2')
+                add_bond('N2', 'C2N')
+                add_bond('C2N', 'O2N')
+                add_bond('C2N', 'CME')
+            # Sialic acid specific connections
+            if group['name'] in ['SIA', 'NGC']:
+                # Acetyl group
+                add_bond('C5', 'N5')
+                add_bond('N5', 'C5N')
+                add_bond('C5N', 'O5N')
+                add_bond('C5N', 'CME')
+                # Glycerol chain
+                add_bond('C6', 'C7')
+                add_bond('C7', 'O7')
+                add_bond('C7', 'C8')
+                add_bond('C8', 'O8')
+                add_bond('C8', 'C9')
+                add_bond('C9', 'O9')
+                # Other substituents
+                add_bond('C2', 'C1')
+                add_bond('C1', 'O1A')
+                add_bond('C1', 'O1B')
+            # Store monosaccharide center for later use in glycosidic bonds
+            ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6'] if is_sialic else ['C1', 'C2', 'C3', 'C4', 'C5']
+            if all(a in atom_lookup for a in ring_atoms):
+                center = np.mean([atom_lookup[a]['coord'] for a in ring_atoms], axis=0)
+                mono_groups[mono_id]['center'] = center
+                mono_name = map_dict[mono_name][:-2]
+                if show_snfg:
+                    add_snfg_symbol(view, center, mono_name, is_ref)
+                # Add monosaccharide label
+                if show_labels:
+                    struct_type = 'ref' if is_ref else 'mobile'
+                    offset = 1.5 if show_snfg else 1.0
+                    label_pos = center + np.array([0, 0, offset])
+                    view.addLabel(f"{mono_name} ({struct_type})", {
+                            'position': {'x': label_pos[0], 'y': label_pos[1], 'z': label_pos[2]},
+                            'backgroundColor': bond_color,
+                            'fontColor': 'white',
+                            'fontSize': 12,
+                            'alpha': 0.8
+                            })
+        # Add glycosidic bonds between monosaccharides
+        for mono_id1, group1 in mono_groups.items():
+            if group1['name'] == 'ROH':
+                continue
+            connecting_carbon = 'C2' if group1['name'] in ['SIA', 'NGC'] else 'C1'
+            c1_atom = next((a for a in group1['atoms'] if a['name'] == connecting_carbon), None)
+            if c1_atom:
+                # Find closest O3/O4/O6 from other monosaccharides
+                min_dist = float('inf')
+                closest_o = None
+                for mono_id2, group2 in mono_groups.items():
+                    if mono_id1 != mono_id2:
+                        for atom in group2['atoms']:
+                            if atom['name'] in ['O1', 'O2', 'O3', 'O4', 'O6']:
+                                dist = np.sqrt(np.sum((c1_atom['coord'] - atom['coord'])**2))
+                                if dist < min_dist:
+                                    min_dist = dist
+                                    closest_o = atom
+                if closest_o and min_dist < 4.0:  # Only draw if reasonably close
+                    view.addCylinder({
+                        'start': {'x': c1_atom['coord'][0], 'y': c1_atom['coord'][1], 'z': c1_atom['coord'][2]},
+                        'end': {'x': closest_o['coord'][0], 'y': closest_o['coord'][1], 'z': closest_o['coord'][2]},
+                        'radius': 0.08,
+                        'color': bond_color,
+                        'alpha': 0.85
+                    })
+    # Add both structures
+    add_structure(ref_coords, ref_labels, is_ref=True)
+    add_structure(transformed, mobile_labels, is_ref=False)
+    # Add RMSD information
     rmsd = superposition_result['rmsd']
-    ax.set_title(f'Superimposed Glycan Structures\nRMSD: {rmsd:.2f} Å')
-    # Set labels and legend
-    ax.set_xlabel('X (Å)')
-    ax.set_ylabel('Y (Å)')
-    ax.set_zlabel('Z (Å)')
-    ax.legend()
-    # Adjust view
-    ax.view_init(elev=20, azim=45)
-    if output_file:
-        plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    plt.show()
+    view.addLabel(f'RMSD: {rmsd:.2f} Å', {
+        'position': {'x': ref_coords[0][0], 'y': ref_coords[0][1], 'z': ref_coords[0][2] + 5},
+        'backgroundColor': 'black',
+        'fontColor': 'white',
+        'fontSize': 14
+    })
+    # Set view options
+    view.setStyle({'sphere': {}})
+    view.zoomTo()
+    view.render()
+    if animate:
+        view.spin(True)
+    return view
