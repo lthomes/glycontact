@@ -642,8 +642,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         if len(df) > 0:
             break
     if len(df) < 1:
-         return pd.DataFrame(columns=['Monosaccharide_id', 'Monosaccharide', 'Mean SASA', 'Median SASA',
-                                      'Weighted SASA', 'Standard Deviation', 'Coefficient of Variation'])
+         return pd.DataFrame(columns=['Monosaccharide_id', 'Monosaccharide', 'SASA', 'Standard Deviation', 'Coefficient of Variation'])
     residue_modifications = df.set_index('residue_number')['IUPAC'].to_dict()
     # Process each PDB file
     sasa_values = {}
@@ -687,8 +686,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
     # Create DataFrame
     df_data = {
         'Monosaccharide_id': [], 'Monosaccharide': [],
-        'Mean SASA': [], 'Median SASA': [],
-        'Weighted SASA': [], 'Standard Deviation': [],
+        'SASA': [], 'Standard Deviation': [],
         'Coefficient of Variation': []
     }
     for resSeq, data in stats.items():
@@ -696,9 +694,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         mean = np.mean(values)
         df_data['Monosaccharide_id'].append(resSeq)
         df_data['Monosaccharide'].append(data['resName'])
-        df_data['Mean SASA'].append(mean)
-        df_data['Median SASA'].append(np.median(values))
-        df_data['Weighted SASA'].append(np.average(values, weights=weights))
+        df_data['SASA'].append(np.average(values, weights=weights))
         std = np.std(values)
         df_data['Standard Deviation'].append(std)
         df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
@@ -780,20 +776,18 @@ def global_monosaccharide_instability(variability_table, mode='sum'):
     return sorted(residue_stability.items(), key=lambda x: x[1])
 
 
-def compute_merge_SASA_flexibility(glycan, flex_mode, global_flex_mode='mean', stereo=None, my_path=None) :
+def compute_merge_SASA_flexibility(glycan, flex_mode, stereo=None, my_path=None) :
     # flex_mode : standard, amplify, weighted
     # global_flex_mode : sum, mean
     if stereo is None:
         stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
     flex = inter_structure_variability_table(glycan, stereo=stereo, mode=flex_mode, my_path=None)
-    mean_flex = global_monosaccharide_instability(flex, mode=global_flex_mode)
-    flex_col = f'{flex_mode}_{global_flex_mode}_flexibility'
-    flex_df = pd.DataFrame(mean_flex, columns=['Monosaccharide_id_Monosaccharide', flex_col])
+    flex_df = pd.DataFrame(global_monosaccharide_instability(flex), columns=['Monosaccharide_id_Monosaccharide', 'flexibility'])
     flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
     if sasa.empty:
         return flex_df
-    return pd.merge(sasa, flex_df[['Monosaccharide_id', f'{flex_mode}_{global_flex_mode}_flexibility']], 
+    return pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], 
                    on='Monosaccharide_id', how='left')
 
 
@@ -833,12 +827,12 @@ def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_
         # Add monosaccharide info
         attrs['Monosaccharide'] = row.get('Monosaccharide', node_id)
         # Add SASA scores if available
-        for col in ['Mean SASA', 'Median SASA', 'Weighted SASA']:
+        for col in ['SASA']:
             if col in row:
                 attrs[col] = row[col]
         # Add flexibility if available
-        if 'weighted_mean_flexibility' in row:
-            attrs['weighted_mean_flexibility'] = row['weighted_mean_flexibility']
+        if 'flexibility' in row:
+            attrs['flexibility'] = row['flexibility']
         # Add ring conformation data if available
         if ring_conf_map and node_id in ring_conf_map:
             attrs.update(ring_conf_map[node_id])
