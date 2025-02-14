@@ -14,6 +14,7 @@ from collections import Counter
 from IPython.display import Image, display, HTML
 from glycontact.process import inter_structure_variability_table, get_structure_graph, monosaccharide_preference_structure, map_dict
 from glycowork.motif.draw import GlycoDraw
+from glycowork.motif.processing import canonicalize_iupac
 
 
 def draw_contact_map(act, filepath='', size = 0.5, return_plot=False) :
@@ -108,6 +109,7 @@ def plot_monosaccharide_instability(glycan, format='png', mode='sum'):
 def plot_glycan_score(glycan, score_list=[], attribute="SASA", filepath='') :
     ### Displays a given glycan and highlights monosaccharides using a score list
     # score_list : list of raw values used to highlight monosaccharides (example: mean SASA score, standard deviation...)
+    glycan = canonicalize_iupac(glycan)
     if not score_list:
         ggraph = get_structure_graph(glycan)
         scores = np.array(list(nx.get_node_attributes(ggraph, attribute).values()))

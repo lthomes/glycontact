@@ -21,7 +21,7 @@ from scipy.optimize import minimize
 from multiprocessing import Pool
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
 from glycowork.motif.annotate import link_find
-from glycowork.motif.processing import canonicalize_iupac
+from glycowork.motif.processing import canonicalize_iupac, rescue_glycans
 import mdtraj as md
 
 # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
@@ -62,7 +62,8 @@ def download_from_glycoshape(IUPAC):
     if IUPAC[-1]==']':
        print('This IUPAC is not formatted properly: ignored')
        return False
-    outpath = global_path / IUPAC
+    IUPAC_clean = canonicalize_iupac(IUPAC)
+    outpath = global_path / IUPAC_clean
     IUPAC_name = quote(IUPAC)
     os.makedirs(outpath, exist_ok=True)
     max_cluster = None
@@ -79,12 +80,8 @@ def download_from_glycoshape(IUPAC):
                 break
             # Only save if it's not a 404
             subprocess.run(f'curl -o {output} "{url}"', shell=True)
-            try:
-                new_name = f'{IUPAC}{output}'
-                os.rename(output, new_name)
-            except:  # If filename is too long
-                new_name = f'cluster{i}_{linktype}.PDB.pdb'
-                os.rename(output, new_name)
+            new_name = f'cluster{i}_{linktype}.PDB.pdb'
+            os.rename(output, new_name)
             shutil.move(new_name, outpath)
 
 
@@ -175,6 +172,7 @@ def get_contact_tables(glycan, stereo=None, level="monosaccharide", my_path=None
         return [make_atom_contact_table(df, mode='distance', threshold=200) for df in dfs if len(df) > 0]
 
 
+@rescue_glycans
 def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_path=None, fresh=False):
     ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent, 
     ### but values represent the stability of monosaccharides/atoms across different PDB of the same molecule.
@@ -208,6 +206,7 @@ def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_p
     return pd.DataFrame(result, columns=columns, index=columns)
 
 
+@rescue_glycans
 def make_correlation_matrix(glycan, stereo=None, my_path=None):
     ### Compute a Pearson correlation matrix
     # my_path : path to the folder containing all PDB folders
@@ -227,6 +226,7 @@ def make_correlation_matrix(glycan, stereo=None, my_path=None):
     return pd.DataFrame(corr_sum/len(dfs), columns=df.columns, index=df.columns)
 
 
+@rescue_glycans
 def inter_structure_frequency_table(glycan, stereo=None, threshold = 5, my_path=None):
     ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent but values represent the frequency of monosaccharides/atoms pairs that crossed a threshold distance across different PDB of the same molecule
     # my_path : path to the folder containing all PDB folders
@@ -518,6 +518,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   return pd.DataFrame(), {}
 
 
+@rescue_glycans
 def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
   ### Huge function combining all smaller ones required to annotate a PDB file into IUPAC nomenclature, ensuring that the conversion is correct
   ### It allows also to determine if PDB to IUPAC conversion at the monosaccharide level works fine
@@ -567,6 +568,7 @@ def monosaccharide_preference_structure(df, monosaccharide, threshold, mode='def
         return {k: v.split('_')[1].split('(')[0] for k, v in preferred_partners.items()}
 
 
+@rescue_glycans
 def multi_glycan_monosaccharide_preference_structure(glycan, monosaccharide, stereo=None, threshold=3.5, mode='default'):
   ### with multiple dicts accross multiple structures
   # suffix : 'alpha' or 'beta'
@@ -865,7 +867,7 @@ def remove_and_concatenate_labels(graph):
     graph.remove_nodes_from(nodes_to_remove)
 
 
-def trim_gcontact(G_contact) :
+def trim_gcontact(G_contact):
     # Remove node 1 which corresponds to -R, absent from G_work
     if 1 in G_contact:
         neighbors = list(G_contact.neighbors(1))  # Get the neighbors of node 1
@@ -899,11 +901,11 @@ def compare_graphs_with_attributes(G_contact, G_work):
     return(mapping_dict)
 
 
-def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact) -> nx.Graph:
+def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr=None) -> nx.Graph:
     """Create a glyco-contact annotated graph with flexibility attributes."""
-    glycowork_graph = glycan_to_nxGraph(glycan)
-    node_attributes = {node: g_contact.nodes[node]
-                           for node in g_contact.nodes}
+    glycowork_graph = glycan_to_nxGraph(glycan, libr=libr)
+    original_labels = {node: data.get('labels', None) for node, data in glycowork_graph.nodes(data=True)}
+    node_attributes = {node: g_contact.nodes[node] for node in g_contact.nodes}
     # Map attributes to the glycowork graph nodes
     flex_attribute_mapping = {
         mapping_dict[gcontact_node]: attributes
@@ -912,6 +914,9 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact) -> n
     }
     # Assign the mapped attributes to the glycowork graph
     nx.set_node_attributes(glycowork_graph, flex_attribute_mapping)
+    for node, label in original_labels.items():
+        if label is not None:
+            glycowork_graph.nodes[node]['labels'] = label
     # Map torsion angles to linkage nodes
     edge_attributes = nx.get_edge_attributes(g_contact, 'phi_angle')
     for (u, v), phi in edge_attributes.items():
@@ -928,7 +933,8 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact) -> n
     return glycowork_graph
 
 
-def get_structure_graph(glycan, stereo=None):
+def get_structure_graph(glycan, stereo=None, libr=None):
+    glycan = canonicalize_iupac(glycan)
     if stereo is None:
         stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
     merged = compute_merge_SASA_flexibility(glycan, 'weighted', stereo=stereo)
@@ -936,11 +942,11 @@ def get_structure_graph(glycan, stereo=None):
     ring_conf = get_ring_conformations(res)
     torsion_angles = get_glycosidic_torsions(res, datadict)
     G_contact = map_data_to_graph(merged, datadict, ring_conf_df=ring_conf, torsion_df=torsion_angles)
-    G_work = glycan_to_nxGraph(canonicalize_iupac(glycan))
+    G_work = glycan_to_nxGraph(glycan)
     remove_and_concatenate_labels(G_work)
     trim_gcontact(G_contact)
     m_dict = compare_graphs_with_attributes(G_contact, G_work)
-    return create_glycontact_annotated_graph(glycan, mapping_dict=m_dict, g_contact=G_contact)
+    return create_glycontact_annotated_graph(glycan, mapping_dict=m_dict, g_contact=G_contact, libr=libr)
 
 
 def check_graph_content(G) : 
@@ -952,31 +958,6 @@ def check_graph_content(G) :
     print("\nGraph Edges:")
     for edge in G.edges():
         print(edge)
-
-
-def get_score_list(datatable, glycan, column):
-    #try to extract score in the same order as glycan string to ensure GlycoDraw will plot them correctly
-    # datatable is either a SASA table, a flex table, or a merged table
-    scores = datatable[column].to_list()[::-1]
-    monos = datatable['Monosaccharide'].to_list()[::-1]
-    glycan_monos = [m + (')' if '(' in m else '') 
-                    for m in glycan.replace('[','').replace(']','').split(')')[:-1]]
-    new_scores = []
-    i = 0
-    while i < len(glycan_monos):
-        if i >= len(monos):
-            break
-        if glycan_monos[i] == monos[i]:
-            new_scores.append(scores[i])
-            i += 1
-        elif i + 1 < len(monos) and glycan_monos[i] == monos[i + 1]:
-            new_scores.extend([scores[i + 1], scores[i]])
-            i += 2
-        else:
-            i += 1
-    # Add remaining scores
-    new_scores.extend(scores[i:i+2])
-    return new_scores if len(new_scores) == len(scores) else scores
 
 
 def extract_glycan_coords(pdb_filepath, residue_ids=None, main_chain_only=False):
@@ -1072,8 +1053,8 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
             - mobile_labels: Atom labels from mobile structure
     """
     if '.' not in ref_glycan+mobile_glycan:
-        ref_conformers = list((global_path / ref_glycan).glob('*.pdb'))
-        mobile_conformers = list((global_path / mobile_glycan).glob('*.pdb'))
+        ref_conformers = list((global_path / canonicalize_iupac(ref_glycan)).glob('*.pdb'))
+        mobile_conformers = list((global_path / canonicalize_iupac(mobile_glycan)).glob('*.pdb'))
     else:
         ref_conformers = [ref_glycan]
         mobile_conformers = [mobile_glycan]
@@ -1128,6 +1109,7 @@ def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_
     Returns:
         List of (glycan_id, rmsd, best_structure) tuples sorted by similarity
     """
+    query_glycan = canonicalize_iupac(query_glycan)
     glycans = get_glycoshape_IUPAC() if glycan_database is None else glycan_database
     glycans = [g for g in glycans if (global_path / g).exists() and any((global_path / g).iterdir()) and g!=query_glycan]
     # Get query coordinates once
