@@ -1077,8 +1077,8 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
                     'rmsd': rmsd,
                     'ref_labels': ref_labels,
                     'mobile_labels': mobile_labels,
-                    'ref_conformer': '_'.join(ref_pdb.stem.split('_')[-2:]),
-                    'mobile_conformer': '_'.join(mobile_pdb.stem.split('_')[-2:])
+                    'ref_conformer': ref_pdb,
+                    'mobile_conformer': mobile_pdb
                 }
     return best_result
 
@@ -1347,41 +1347,3 @@ def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH'])
             print(f"Warning: {str(e)}")
             continue   
     return pd.DataFrame(results)
-
-
-def get_electrostatic_potential(coords_df: pd.DataFrame) -> Dict[int, float]:
-    """
-    Estimate electrostatic potential considering both formal charges and partial charges.
-    Carefully handles atoms involved in charged groups to avoid double counting.
-    """
-    # Define formal charges
-    charged_groups = {
-        'SO3': {'charge': -2.0, 'atoms': {'S', 'OS1', 'OS2', 'OS3'}},  # Sulfate atoms
-        'COO': {'charge': -1.0, 'atoms': {'C1', 'O1A', 'O1B'}},        # Carboxyl atoms
-        'NS': {'charge': -1.0, 'atoms': {'NS', 'OS1', 'OS2', 'OS3'}}  # N-sulfate atoms
-    }
-    # Define partial charges for atoms not in charged groups
-    partial_charges = {
-        'O': -0.4,  # Hydroxyl oxygen
-        'N': -0.3,  # Amine nitrogen
-        'C': 0.1,   # Carbon
-        'H': 0.1    # Hydrogen
-    }
-    potentials = {}
-    for residue, group in coords_df.groupby('residue_number'):
-        potential = 0.0
-        mono_type = group['monosaccharide'].iloc[0]
-        # Track atoms that are part of charged groups
-        atoms_in_charged_groups = set()
-        # First add formal charges and track involved atoms
-        for group_type, group_info in charged_groups.items():
-            if group_type in mono_type:
-                potential += group_info['charge']
-                atoms_in_charged_groups.update(group_info['atoms'])
-        # Then add partial charges for atoms not in charged groups
-        for _, atom in group.iterrows():
-            if atom['atom_name'] not in atoms_in_charged_groups:
-                charge = partial_charges.get(atom['element'], 0.0)
-                potential += charge
-        potentials[residue] = potential
-    return potentials

@@ -166,13 +166,13 @@ def add_snfg_symbol(view, center, mono_name, alpha=1.0):
     if symbol_spec['shape'] == 'sphere':
         view.addSphere({
             'center': {'x': center[0], 'y': center[1], 'z': center[2]},
-            'radius': 0.5,  # Larger than atom spheres
+            'radius': 0.7,  # Larger than atom spheres
             'color': color,
             'alpha': alpha
         })
     elif symbol_spec['shape'] == 'cube':
         # Create cube using eight vertices and faces
-        size = 0.8  # Size of cube
+        size = 1.0  # Size of cube
         view.addBox({
             'center': {'x': center[0], 'y': center[1], 'z': center[2]},
             'dimensions': {'w': size, 'h': size, 'd': size},
@@ -181,7 +181,7 @@ def add_snfg_symbol(view, center, mono_name, alpha=1.0):
         })
     elif symbol_spec['shape'] == 'diamond':
         # Create an octahedron (diamond) using cylinders for edges
-        size = 0.6  # Adjust size
+        size = 0.8  # Adjust size
         # Define the six vertices of an octahedron relative to the center
         vertices = np.array([
             [center[0] + size, center[1], center[2]],       # +X
@@ -217,7 +217,7 @@ def add_snfg_symbol(view, center, mono_name, alpha=1.0):
             })
     elif symbol_spec['shape'] == 'cone':
         # Create a cone using addArrow
-        size = 0.6  # Adjust size
+        size = 0.8  # Adjust size
         height = size * 1.5
         radius = size / 2
         # Define the direction of the cone (e.g., along the +Z axis)
@@ -236,7 +236,8 @@ def add_snfg_symbol(view, center, mono_name, alpha=1.0):
         })
 
 
-def _do_3d_plotting(coords, labels, view=None, colors=None, bond_color=None, alpha=0.85, show_snfg=True, show_labels=False):
+def _do_3d_plotting(pdb_file, coords, labels, view=None, color='', bond_color=None, alpha=1.0, show_snfg=True,
+                    show_labels=False, show_volume=False, pos='ref'):
     """Plot a single glycan structure in 3D.
     Args:
         coords: Nx3 array of atomic coordinates
@@ -249,15 +250,32 @@ def _do_3d_plotting(coords, labels, view=None, colors=None, bond_color=None, alp
         show_labels: Whether to show monosaccharide labels
     """
     if view is None:
-            view = py3Dmol.view(width=800, height=800)
-    if colors is None:
-        colors = {
-            'C': '0x0055BB',
-            'O': '0x000088',
-            'N': '0x88BBFF'
-        }
-    if bond_color is None:
-        bond_color = colors['C']
+        view = py3Dmol.view(width=800, height=800)
+    # Read PDB file for connectivity information
+    pdb_content = open(pdb_file, 'r').read()
+    if pos != 'ref':
+        pdb_content = pdb_content.replace(" X ", " B ")
+    # Create a new PDB content with updated coordinates
+    new_pdb_lines = []
+    pdb_lines = pdb_content.split('\n')
+    coord_idx = 0
+    for line in pdb_lines:
+        if line.startswith('ATOM') or line.startswith('HETATM'):
+            # Skip hydrogen atoms as they're filtered in coords
+            if line[12:16].strip()[0] == 'H':
+                continue
+            # Update coordinates in the PDB line
+            new_line = (line[:30] + 
+                       f"{coords[coord_idx][0]:8.3f}{coords[coord_idx][1]:8.3f}{coords[coord_idx][2]:8.3f}" +
+                       line[54:])
+            new_pdb_lines.append(new_line)
+            coord_idx += 1
+        else:
+            new_pdb_lines.append(line)
+    # Add the model with updated coordinates
+    view.addModel('\n'.join(new_pdb_lines), "pdb")
+    if show_volume:
+        view.addSurface(py3Dmol.VDW, {'opacity': 0.5})
         
     def get_mono_info(label):
         parts = label.split('_')
@@ -289,102 +307,8 @@ def _do_3d_plotting(coords, labels, view=None, colors=None, bond_color=None, alp
         is_sialic = mono_name in ['SIA', 'NGC']
         # Create lookup for atoms by name
         atom_lookup = {atom['name']: atom for atom in atoms}
-        # Add atoms with proper coloring
-        for atom in atoms:
-            view.addSphere({
-                'center': {'x': atom['coord'][0], 'y': atom['coord'][1], 'z': atom['coord'][2]},
-                'radius': 0.25,
-                'color': colors[atom['type']],
-                'alpha': alpha
-            })
         # Handle ring bonds
         ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6'] if is_sialic else ['C1', 'C2', 'C3', 'C4', 'C5']
-        for i in range(len(ring_atoms)-1):
-            if ring_atoms[i] in atom_lookup and ring_atoms[i+1] in atom_lookup:
-                c1 = atom_lookup[ring_atoms[i]]['coord']
-                c2 = atom_lookup[ring_atoms[i+1]]['coord']
-                view.addCylinder({
-                    'start': {'x': c1[0], 'y': c1[1], 'z': c1[2]},
-                    'end': {'x': c2[0], 'y': c2[1], 'z': c2[2]},
-                    'radius': 0.08,
-                    'color': bond_color,
-                    'alpha': alpha
-                })
-        # Add ring-closing bonds
-        if is_sialic:
-            if 'O6' in atom_lookup:
-                for carbon in ['C2', 'C6']:
-                    if carbon in atom_lookup:
-                        o6 = atom_lookup['O6']['coord']
-                        c = atom_lookup[carbon]['coord']
-                        view.addCylinder({
-                            'start': {'x': o6[0], 'y': o6[1], 'z': o6[2]},
-                            'end': {'x': c[0], 'y': c[1], 'z': c[2]},
-                            'radius': 0.08,
-                            'color': bond_color,
-                            'alpha': alpha
-                        })
-        else:
-            if 'O5' in atom_lookup:
-                for carbon in ['C1', 'C5']:
-                    if carbon in atom_lookup:
-                        o5 = atom_lookup['O5']['coord']
-                        c = atom_lookup[carbon]['coord']
-                        view.addCylinder({
-                            'start': {'x': o5[0], 'y': o5[1], 'z': o5[2]},
-                            'end': {'x': c[0], 'y': c[1], 'z': c[2]},
-                            'radius': 0.08,
-                            'color': bond_color,
-                            'alpha': alpha
-                        })
-
-        def add_bond(atom1_name, atom2_name):
-            if atom1_name in atom_lookup and atom2_name in atom_lookup:
-                a1 = atom_lookup[atom1_name]['coord']
-                a2 = atom_lookup[atom2_name]['coord']
-                view.addCylinder({
-                    'start': {'x': a1[0], 'y': a1[1], 'z': a1[2]},
-                    'end': {'x': a2[0], 'y': a2[1], 'z': a2[2]},
-                    'radius': 0.08,
-                    'color': bond_color,
-                    'alpha': alpha
-                })
-        
-        # Add all substituent bonds
-        for atom in atoms:
-            if atom['name'].startswith(('O', 'N')) and not atom['name'] in ['O5', 'O6']:
-                carbon_num = atom['name'][-1]
-                carbon_name = f'C{carbon_num}'
-                if carbon_name in atom_lookup:
-                    add_bond(atom['name'], carbon_name)
-        # Add specific substituent bonds based on monosaccharide type
-        if group['name'] in {'GAL', 'GLC', 'NAG', 'NDG', 'A2G'}:
-            add_bond('C5', 'C6')
-            add_bond('C6', 'O6')
-            if group['name'] in {'NAG', 'NDG', 'A2G'}:
-                add_bond('C2', 'N2')
-                add_bond('N2', 'C2N')
-                add_bond('C2N', 'O2N')
-                add_bond('C2N', 'CME')
-        elif group['name'] in {'FUC'}:
-            add_bond('C5', 'C6')
-        elif group['name'] in {'SIA', 'NGC'}:
-            # Acetyl group
-            add_bond('C5', 'N5')
-            add_bond('N5', 'C5N')
-            add_bond('C5N', 'O5N')
-            add_bond('C5N', 'CME')
-            # Glycerol chain
-            add_bond('C6', 'C7')
-            add_bond('C7', 'O7')
-            add_bond('C7', 'C8')
-            add_bond('C8', 'O8')
-            add_bond('C8', 'C9')
-            add_bond('C9', 'O9')
-            # Carboxyl group
-            add_bond('C2', 'C1')
-            add_bond('C1', 'O1A')
-            add_bond('C1', 'O1B')
         # Add SNFG symbols and labels if requested
         if all(a in atom_lookup for a in ring_atoms):
             center = np.mean([atom_lookup[a]['coord'] for a in ring_atoms], axis=0)
@@ -402,34 +326,12 @@ def _do_3d_plotting(coords, labels, view=None, colors=None, bond_color=None, alp
                     'fontSize': 12,
                     'alpha': 0.8
                 })
-    # Add glycosidic bonds between monosaccharides
-    for mono_id1, group1 in mono_groups.items():
-        if group1['name'] == 'ROH':
-            continue
-        connecting_carbon = 'C2' if group1['name'] in ['SIA', 'NGC'] else 'C1'
-        c1_atom = next((a for a in group1['atoms'] if a['name'] == connecting_carbon), None)
-        if c1_atom:
-            min_dist = float('inf')
-            closest_o = None
-            for mono_id2, group2 in mono_groups.items():
-                if mono_id1 != mono_id2:
-                    for atom in group2['atoms']:
-                        if atom['name'] in ['O1', 'O2', 'O3', 'O4', 'O6']:
-                            dist = np.sqrt(np.sum((c1_atom['coord'] - atom['coord'])**2))
-                            if dist < min_dist:
-                                min_dist = dist
-                                closest_o = atom
-            if closest_o and min_dist < 4.0:
-                view.addCylinder({
-                    'start': {'x': c1_atom['coord'][0], 'y': c1_atom['coord'][1], 'z': c1_atom['coord'][2]},
-                    'end': {'x': closest_o['coord'][0], 'y': closest_o['coord'][1], 'z': closest_o['coord'][2]},
-                    'radius': 0.08,
-                    'color': bond_color,
-                    'alpha': alpha
-                })
+    view.setStyle({'stick': {}})
+    if color:
+        view.setStyle({'chain': 'B'}, {'stick':{'colorscheme': color}})
 
 
-def plot_glycan_3D(glycan, stereo=None, view=None, **plot_kwargs):
+def plot_glycan_3D(glycan, stereo=None, view=None, show_volume=False, volume_params={}, **plot_kwargs):
     """Plot a single glycan structure from its IUPAC sequence.
     
     Args:
@@ -449,12 +351,10 @@ def plot_glycan_3D(glycan, stereo=None, view=None, **plot_kwargs):
     coords_df = extract_3D_coordinates(pdb_file)
     coords_df = coords_df[~coords_df['atom_name'].str.startswith('H')]
     coords = coords_df[['x', 'y', 'z']].values
-    labels = [f"{row['residue_number']}_{row['monosaccharide']}_{row['atom_name']}" 
-             for _, row in coords_df.iterrows()]
+    labels = [f"{row['residue_number']}_{row['monosaccharide']}_{row['atom_name']}" for _, row in coords_df.iterrows()]
     # Plot structure
-    _do_3d_plotting(coords, labels, view=view, **plot_kwargs)
+    _do_3d_plotting(pdb_file, coords, labels, view=view, show_volume=show_volume, **plot_kwargs)
     # Set view options
-    view.setStyle({'sphere': {}})
     view.zoomTo()
     view.render()
     return view
@@ -469,22 +369,11 @@ def plot_superimposed_glycans(superposition_result, filepath='', animate=True, r
         show_labels: Whether to show atom labels
     """
     view = py3Dmol.view(width=800, height=800)
-    # More contrasting color schemes
-    ref_colors = {
-        'C': '0x0055BB',  # Strong blue for carbon
-        'O': '0x000088',  # Very dark blue for oxygen
-        'N': '0x88BBFF'   # Light blue for nitrogen
-    }
-    mobile_colors = {
-        'C': '0xFF6600',  # Bright orange for carbon
-        'O': '0xCC3300',  # Dark red-orange for oxygen
-        'N': '0xFFBB44'   # Light orange for nitrogen
-    }
     # Plot both structures
-    _do_3d_plotting(superposition_result['ref_coords'], superposition_result['ref_labels'], view=view,
-                   colors=ref_colors, alpha=0.85, show_snfg=show_snfg, show_labels=show_labels)
-    _do_3d_plotting(superposition_result['transformed_coords'], superposition_result['mobile_labels'], view=view,
-                   colors=mobile_colors, alpha=1.0, show_snfg=show_snfg, show_labels=show_labels)
+    _do_3d_plotting(superposition_result['ref_conformer'], superposition_result['ref_coords'], superposition_result['ref_labels'], view=view,
+                   alpha=0.85, show_snfg=show_snfg, show_labels=show_labels)
+    _do_3d_plotting(superposition_result['mobile_conformer'], superposition_result['transformed_coords'], superposition_result['mobile_labels'], view=view,
+                   color='skyblueCarbon', alpha=1.0, show_snfg=show_snfg, show_labels=show_labels, pos="mobile")
 
     # Add RMSD information
     rmsd = superposition_result['rmsd']
@@ -497,7 +386,6 @@ def plot_superimposed_glycans(superposition_result, filepath='', animate=True, r
         'fontSize': 14
     })
     # Set view options
-    view.setStyle({'sphere': {}})
     view.zoomTo()
     view.render()
     if filepath:
