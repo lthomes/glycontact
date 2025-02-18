@@ -33,7 +33,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
               'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
               '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a',
-              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a',
+              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GlcA(b', '3OA': 'GlcA(b', 'TOA': 'GlcA(b',
               'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
               'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
@@ -258,8 +258,8 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     """
     # First check if we only have one monosaccharide
     unique_residues = coordinates_df['residue_number'].nunique()
-    carbon_mask = (((~coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE', na=False)) & (coordinates_df['atom_name'] == 'C1')) |
-    ((coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE', na=False)) & (coordinates_df['atom_name'] == 'C2')))
+    carbon_mask = (((~coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE|4CD|0CU', na=False)) & (coordinates_df['atom_name'] == 'C1')) |
+    ((coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE|4CD|0CU', na=False)) & (coordinates_df['atom_name'] == 'C2')))
     oxygen_mask = coordinates_df['atom_name'].isin(['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9'])
     carbons = coordinates_df[carbon_mask]
     oxygens = coordinates_df[oxygen_mask]
@@ -309,7 +309,7 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     return df[['Atom', 'Column', 'Value']].reset_index(drop=True)
 
 
-def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
+def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose_end) :
   #df is an interaction dataframe as returned by extract_binary_interactions_from_PDB()
   # valid_fragments : obtained from glycowork to ensure that we only append valid monolinks into mapping dict
   # n_glycan : True or False, indicates if the first mannose should be corrected or not
@@ -321,12 +321,13 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
             'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)', 
             'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)', 
             'GlcNS3S6S(b1-1)', '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)', 
-            'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Fru(a1-1)', 
-            'Fru(b1-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
+            'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Araf(a1-1)', 'Araf(b1-1)', 'Fru(a2-1)', 
+            'Fru(b2-1)', 'Fruf(a2-1)', 'Fruf(b2-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
         }
   mapping_dict = {'1_ROH': '-R'}
   interaction_dict, interaction_dict2 = {}, {}
   wrong_mannose, individual_entities = [], []
+  furanose_map = {'Fru': 'Fruf', 'Gal': 'Galf', 'Ara': 'Araf'}
   for _, row in df.iterrows():
         first_mono = row['Atom']
         second_mono = row['Column']
@@ -343,6 +344,9 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan) :
             if m in wrong_mannose:
                 m = f"{m.split('_')[0]}_BMA"
         mapped_to_check = f"{map_dict[mono.split('_')[1]]}{first_val}-{last_val})"
+        mono_type = mapped_to_check.split('(')[0]
+        if (mapped_to_check not in valid_fragments and (mapped_to_check not in special_cases or furanose_end) and mono_type in furanose_map):
+            mapped_to_check = furanose_map[mono_type] + mapped_to_check[len(mono_type):]
         if (mapped_to_check in valid_fragments) or (mapped_to_check in special_cases):
             mapped_to_use = 'Man(b1-4)' if mapped_to_check == 'Man(a1-4)' else mapped_to_check
             mapping_dict[mono] = mapped_to_use
@@ -376,10 +380,8 @@ def extract_binary_glycontact_interactions(interaction_dict):
 def extract_binary_glycowork_interactions(graph_output):
     """
     Extracts a list of binary interactions from the output of glycan_to_graph function.
-
     Parameters:
     - graph_output (tuple): The output tuple from glycan_to_graph function.
-
     Returns:
     - list of binary interactions as pairs of labels.
     """
@@ -401,8 +403,8 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
         ('GlcNAc6S', 'b1-1'), ('GlcNS6S', 'a1-1'), ('GlcNS6S', 'b1-1'),
         ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S', 'b1-1'),
         ('2-4-diacetimido-2-4-6-trideoxyhexose', 'a1-1'), ('GlcA2S', 'a1-1'),
-        ('GlcA2S', 'b1-1'), ('Ara', 'a1-1'), ('Ara', 'b1-1'), ('Fru', 'a1-1'),
-        ('Fru', 'b1-1'), ('ManNAc', 'a1-1'), ('ManNAc', 'b1-1')
+        ('GlcA2S', 'b1-1'), ('Ara', 'a1-1'), ('Ara', 'b1-1'), ('Araf', 'a1-1'), ('Araf', 'b1-1'), ('Fru', 'a2-1'),
+        ('Fru', 'b2-1'), ('ManNAc', 'a1-1'), ('ManNAc', 'b1-1'), ('Fruf', 'a2-1'), ('Fruf', 'b2-1')
     }
   differences = set(glycontact_interactions) ^ set(glycowork_interactions)
   filtered_differences = [pair for pair in differences if pair not in ignore_pairs]
@@ -465,6 +467,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
         "QYS3SO3": "GlcNS3S6S", "QYS6SO3": "GlcNS3S6S"
     }
   n_glycan = 'Man(b1-4)GlcNAc(b1-4)' in glycan
+  furanose_end = glycan.endswith('f')
   df = correct_dataframe(extract_3D_coordinates(pdb_file))
   if any(mm in glycan for mm in MODIFIED_MONO):
         # Process modified glycans
@@ -511,10 +514,13 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           res = res[res.Value < thresh].reset_index(drop=True)
           if len(res) > 0:
               break
-  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments, n_glycan)
+  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments, n_glycan, furanose_end)
   # Validate against glycowork
   glycowork_interactions = extract_binary_glycowork_interactions(glycan_to_graph(glycan))
   glycontact_interactions = extract_binary_glycontact_interactions(interaction_dict)
+  glycontact_interactions = [(x + 'f' if any(f'{x}f(' in s for s in valid_fragments) and not any(f'{x}(' in s for s in valid_fragments) else x,
+                              y + 'f' if any(f'{y}f(' in s for s in valid_fragments) and not any(f'{y}(' in s for s in valid_fragments) else y)
+                             for x, y in glycontact_interactions]
   if (glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) and 
         check_reconstructed_interactions(interaction_dict)):
         return annotate_pdb_data(df, mapping_dict), interaction_dict
