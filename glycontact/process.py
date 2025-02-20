@@ -32,7 +32,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b', '2kA': 'L-Gul(a', '0mA': 'L-Man(a',
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
               'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
-              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a',
+              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a', 'ARB': 'D-Ara(b',
               'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GlcA(b', '3OA': 'GlcA(b', 'TOA': 'GlcA(b',
               'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
@@ -40,7 +40,8 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a", 
               "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(a", "MAN3MEX":"Man3Me(a", 
               "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a",
-              "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a"}
+              "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a",
+              "FUC2MEX3MEX4MEX": "Fuc2Me3Me4Me(a", "QYS3SO36SO3": "GlcNAc3S6S(a", "VYS3SO36SO3": "GlcNS3S6S(a", "NDG3SO36SO3": "GlcNS3S6S(a", "RAM2MEX3MEX": "Rha2Me3Me(a"}
 
 PACKAGE_ROOT = Path(__file__).parent.parent
 global_path = PACKAGE_ROOT / 'glycans_pdb/'
@@ -452,8 +453,8 @@ def correct_dataframe(df):
 def get_annotation(glycan, pdb_file, threshold=3.5):
   MODIFIED_MONO = {
         "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac", 
-        "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6Pc",
-        "GlcNS6S", "GlcNS3S6S"
+        "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6PCho",
+        "GlcNS6S", "GlcNS3S6S", "Fuc2Me3Me4Me", "Rha2Me3Me"
     }
   NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
   CUSTOM_PDB = {
@@ -463,8 +464,8 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
         "SIA9MEX": "Neu5Ac9Me", "NGC9MEX": "Neu5Gc9Me", "BDP4MEX": "GlcA4Me",
         "GAL6SO3": "Gal6S", "NAG6PCX": "GlcNAc6PCho", "UYS6SO3": "GlcNS6S",
         "4YS6SO3": "GlcNS6S", "6YS6SO3": "GlcNS6S", "GCU2SO3": "GlcA2S",
-        'VYS3SO3': 'GlcNS3S6S', 'VYS6SO3': 'GlcNS3S6S',
-        "QYS3SO3": "GlcNS3S6S", "QYS6SO3": "GlcNS3S6S"
+        'VYS3SO3': 'GlcNS3S6S', 'VYS6SO3': 'GlcNS3S6S', 'FUC2MEX': 'Fuc2Me', 'FUC3MEX': 'Fuc3Me', 'FUC4MEX': 'Fuc4Me',
+        "QYS3SO3": "GlcNS3S6S", "QYS6SO3": "GlcNS3S6S", "RAM2MEX": "Rha2Me", "RAM3MEX": "Rha3Me"
     }
   n_glycan = 'Man(b1-4)GlcNAc(b1-4)' in glycan
   furanose_end = glycan.endswith('f')
@@ -495,14 +496,33 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
                         to_modify_dict[int(sugar_resnum)] = modified_mono
                         to_modify_dict[key] = [modified_mono, sugar_resnum]
         # Apply modifications to dataframe
+        grouped_mods = {}
         for residue_num, modification in to_modify_dict.items():
-            if isinstance(modification, str):
-                df.loc[df['residue_number'] == residue_num, 'monosaccharide'] = modification
+            target_residue = modification[1] if isinstance(modification, list) else residue_num
+            if target_residue not in grouped_mods:
+                grouped_mods[target_residue] = []
+            grouped_mods[target_residue].append(modification)
+        for target_residue, mods in grouped_mods.items():
+            if len(mods) > 1:
+                # Multiple modifications for same residue - combine them
+                base = mods[0][0] if isinstance(mods[0], list) else mods[0]  # Get base from first mod
+                base = base[:3]  # Extract just the base part (e.g., 'FUC')
+                mod_parts = []
+                for mod in mods:
+                    mod_str = mod[0] if isinstance(mod, list) else mod
+                    mod_parts.append(mod_str[3:])  # Get just the modification part (e.g., '2MEX')
+                combined_mod = base + ''.join(sorted(mod_parts))  # Combine with sorted modifications
+                df.loc[df['residue_number'] == int(target_residue), 'monosaccharide'] = combined_mod
             else:
-                monosaccharide, new_residue = modification
-                mask = df['residue_number'] == residue_num
-                df.loc[mask, 'monosaccharide'] = monosaccharide
-                df.loc[mask, 'residue_number'] = int(new_residue)
+                # Single modification - use original logic
+                mod = mods[0]
+                if isinstance(mod, str):
+                    df.loc[df['residue_number'] == target_residue, 'monosaccharide'] = mod
+                else:
+                    monosaccharide, new_residue = mod
+                    mask = df['residue_number'] == target_residue
+                    df.loc[mask, 'monosaccharide'] = monosaccharide
+                    df.loc[mask, 'residue_number'] = int(new_residue)
         df = df.sort_values('residue_number')
   # Extract and validate linkages
   valid_fragments = {x.split(')')[0] + ')' for x in link_find(glycan)}
@@ -636,7 +656,7 @@ def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
 
 
 def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
-    mods = {'SO3', 'ACX', 'MEX'}
+    mods = {'SO3', 'ACX', 'MEX', 'PCX'}
     df = []
     if stereo is None:
         stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
@@ -663,11 +683,20 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         # Group SASA by residue
         mono_sasa, modification_to_parent = {}, {}
         # First pass: identify modification groups and their parent residues
+        parent_resSeq = None
         for res in structure.topology.residues:
-            if res.name in mods:
-                # The parent is typically the residue before it
-                parent_resSeq = res.resSeq - 1
-                modification_to_parent[res.resSeq] = parent_resSeq
+            if res.name == 'PCX':
+                # Special case: find the residue with PCho in residue_modifications
+                for resSeq, resName in residue_modifications.items():
+                    if 'PCho' in resName:
+                        modification_to_parent[res.resSeq] = resSeq
+                        break
+            elif res.name not in mods:
+                parent_resSeq = res.resSeq
+            else:
+                # If this is a modification, assign it to the last seen non-modification residue
+                if parent_resSeq is not None:
+                    modification_to_parent[res.resSeq] = parent_resSeq
         # Second pass: calculate SASA value
         for atom in structure.topology.atoms:
             res = atom.residue
@@ -970,13 +999,10 @@ def check_graph_content(G) :
 
 
 def extract_glycan_coords(pdb_filepath, residue_ids=None, main_chain_only=False):
-    """
-    Extract main chain coordinates of glycan residues from PDB file.
-    
+    """Extract main chain coordinates of glycan residues from PDB file.
     Args:
         pdb_file: Path to PDB file
         residue_ids: Optional list of residue numbers to extract. If None, extracts all main chain atoms.
-            
     Returns:
         Tuple of (coordinates array, atom labels)
     """
@@ -997,14 +1023,11 @@ def extract_glycan_coords(pdb_filepath, residue_ids=None, main_chain_only=False)
 
 
 def align_point_sets(mobile_coords, ref_coords):
-    """
-    Find optimal rigid transformation to align two point sets.
+    """Find optimal rigid transformation to align two point sets.
     Uses Kabsch algorithm after finding best point correspondences.
-    
     Args:
         mobile_coords: Nx3 array of coordinates to transform
         ref_coords: Mx3 array of reference coordinates
-        
     Returns:
         Tuple of (transformed coordinates, RMSD)
     """
@@ -1331,7 +1354,7 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
     }
 
 
-def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH']) -> pd.DataFrame:
+def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH', 'MEX', 'PCX', 'SO3', 'ACX']) -> pd.DataFrame:
     """Analyze ring conformations for all residues in structure.
     Args:
         df: DataFrame with PDB coordinates

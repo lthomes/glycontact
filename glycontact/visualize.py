@@ -308,7 +308,7 @@ def _do_3d_plotting(pdb_file, coords, labels, view=None, color='', bond_color=No
         # Create lookup for atoms by name
         atom_lookup = {atom['name']: atom for atom in atoms}
         # Handle ring bonds
-        ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6'] if is_sialic else ['C1', 'C2', 'C3', 'C4', 'C5']
+        ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6', 'O6'] if is_sialic else ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
         # Add SNFG symbols and labels if requested
         if all(a in atom_lookup for a in ring_atoms):
             center = np.mean([atom_lookup[a]['coord'] for a in ring_atoms], axis=0)
