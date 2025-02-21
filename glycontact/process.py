@@ -33,12 +33,12 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
               'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
               '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a', 'ARB': 'D-Ara(b',
-              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GlcA(b', '3OA': 'GlcA(b', 'TOA': 'GlcA(b',
+              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GlcA(b', '3OA': 'GalA(a', 'TOA': 'GlcA(b',
               'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
-              'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b', 
+              'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b',
               'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
-              "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a", 
-              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(a", "MAN3MEX":"Man3Me(a", 
+              "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a",
+              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(a", "MAN3MEX":"Man3Me(a",
               "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a",
               "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a",
               "FUC2MEX3MEX4MEX": "Fuc2Me3Me4Me(a", "QYS3SO36SO3": "GlcNAc3S6S(a", "VYS3SO36SO3": "GlcNS3S6S(a", "NDG3SO36SO3": "GlcNS3S6S(a", "RAM2MEX3MEX": "Rha2Me3Me(a"}
@@ -119,8 +119,8 @@ def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
     coords = coord_df[['x', 'y', 'z']].values
     diff = coords[:, np.newaxis, :] - coords
     distances = np.abs(diff).sum(axis=2)
-    labels = [f"{num}_{mono}_{atom}_{anum}" for num, mono, atom, anum in 
-             zip(coord_df['residue_number'], coord_df[mono_nomenclature], 
+    labels = [f"{num}_{mono}_{atom}_{anum}" for num, mono, atom, anum in
+             zip(coord_df['residue_number'], coord_df[mono_nomenclature],
                  coord_df['atom_name'], coord_df['atom_number'])]
     if mode == 'exclusive':
         # Mask intra-residue distances
@@ -139,7 +139,7 @@ def make_monosaccharide_contact_table(coord_df, threshold = 10, mode = 'binary')
     n_residues = len(residues)
     binary_matrix = np.ones((n_residues, n_residues))
     dist_matrix = np.full((n_residues, n_residues), threshold + 1)
-    labels = [f"{i}_{coord_df[coord_df['residue_number']==i][mono_nomenclature].iloc[0]}" 
+    labels = [f"{i}_{coord_df[coord_df['residue_number']==i][mono_nomenclature].iloc[0]}"
              for i in residues]
     for i, res1 in enumerate(residues):
         coords1 = coord_df[coord_df['residue_number']==res1][['x','y','z']].values
@@ -178,13 +178,13 @@ def get_contact_tables(glycan, stereo=None, level="monosaccharide", my_path=None
 
 @rescue_glycans
 def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_path=None, fresh=False):
-    ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent, 
+    ### Creates a table as make_atom_contact_table() or the monosaccharide equivalent,
     ### but values represent the stability of monosaccharides/atoms across different PDB of the same molecule.
     ### Includes weighted scores calculation based on cluster frequencies only if in "weighted" mode.
     # my_path : path to the folder containing all PDB folders
     # glycan : glycan in IUPAC sequence
     # stereo : 'alpha' or 'beta' to work with alpha- or beta-linked glycans
-    # mode : can be 'standard' (compute the sum of the absolute distances to the mean), 
+    # mode : can be 'standard' (compute the sum of the absolute distances to the mean),
     #        'amplify' (uses the power 2 of the sum which decreases noise and increases outliers importance),
     #        or 'weighted' (computes weighted deviations using cluster frequencies).
     if isinstance(glycan, str):
@@ -268,11 +268,11 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     o_coords = oxygens[['x', 'y', 'z']].values
     c_residues = carbons['residue_number'].values
     o_residues = oxygens['residue_number'].values
-    c_labels = [f"{r}_{m}_{a}" for r, m, a in 
-                zip(carbons['residue_number'], carbons['monosaccharide'], 
+    c_labels = [f"{r}_{m}_{a}" for r, m, a in
+                zip(carbons['residue_number'], carbons['monosaccharide'],
                     carbons['atom_name'])]
-    o_labels = [f"{r}_{m}_{a}" for r, m, a in 
-                zip(oxygens['residue_number'], oxygens['monosaccharide'], 
+    o_labels = [f"{r}_{m}_{a}" for r, m, a in
+                zip(oxygens['residue_number'], oxygens['monosaccharide'],
                     oxygens['atom_name'])]
     interactions = []
     if unique_residues == 2:
@@ -315,20 +315,20 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
   # valid_fragments : obtained from glycowork to ensure that we only append valid monolinks into mapping dict
   # n_glycan : True or False, indicates if the first mannose should be corrected or not
   special_cases = {
-            'Man(a1-4)', '-R', 'GlcNAc(a1-1)', 'GlcNAc(b1-1)', 'GalNAc(a1-1)', 
-            'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)', 
-            'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)', 
-            'Gal(b1-1)', 'Fuc(a1-1)', 'Fuc(b1-1)', 'Xyl(a1-1)', 'Xyl(b1-1)', 
-            'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)', 
-            'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)', 
-            'GlcNS3S6S(b1-1)', '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)', 
-            'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Araf(a1-1)', 'Araf(b1-1)', 'Fru(a2-1)', 
+            'Man(a1-4)', '-R', 'GlcNAc(a1-1)', 'GlcNAc(b1-1)', 'GalNAc(a1-1)',
+            'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)',
+            'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)',
+            'Gal(b1-1)', 'Fuc(a1-1)', 'Fuc(b1-1)', 'Xyl(a1-1)', 'Xyl(b1-1)', 'L-Gul(a1-1)',  'L-Gul(b1-1)',
+            'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)',
+            'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)',
+            'GlcNS3S6S(b1-1)', '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)', 'D-Araf(a1-1)', 'D-Araf(b1-1)',
+            'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Araf(a1-1)', 'Araf(b1-1)', 'Fru(a2-1)',
             'Fru(b2-1)', 'Fruf(a2-1)', 'Fruf(b2-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
         }
   mapping_dict = {'1_ROH': '-R'}
   interaction_dict, interaction_dict2 = {}, {}
   wrong_mannose, individual_entities = [], []
-  furanose_map = {'Fru': 'Fruf', 'Gal': 'Galf', 'Ara': 'Araf'}
+  furanose_map = {'Fru': 'Fruf', 'Gal': 'Galf', 'Ara': 'Araf', 'D-Ara': 'D-Araf'}
   for _, row in df.iterrows():
         first_mono = row['Atom']
         second_mono = row['Column']
@@ -349,7 +349,7 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
         if (mapped_to_check not in valid_fragments and (mapped_to_check not in special_cases or furanose_end) and mono_type in furanose_map):
             mapped_to_check = furanose_map[mono_type] + mapped_to_check[len(mono_type):]
         if (mapped_to_check in valid_fragments) or (mapped_to_check in special_cases):
-            mapped_to_use = 'Man(b1-4)' if mapped_to_check == 'Man(a1-4)' else mapped_to_check
+            mapped_to_use =  'Man(b1-4)' if (mapped_to_check == 'Man(a1-4)' and n_glycan) else mapped_to_check
             mapping_dict[mono] = mapped_to_use
             mono_key = f"{mono.split('_')[0]}_({mapped_to_use.split('(')[1]}"
             if mono in interaction_dict:
@@ -402,8 +402,8 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
         ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'),
         ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'),
         ('GlcNAc6S', 'b1-1'), ('GlcNS6S', 'a1-1'), ('GlcNS6S', 'b1-1'),
-        ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S', 'b1-1'),
-        ('2-4-diacetimido-2-4-6-trideoxyhexose', 'a1-1'), ('GlcA2S', 'a1-1'),
+        ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S', 'b1-1'), ('L-Gul', 'a1-1'), ('L-Gul', 'b1-1'),
+        ('2-4-diacetimido-2-4-6-trideoxyhexose', 'a1-1'), ('GlcA2S', 'a1-1'), ('D-Araf', 'a1-1'), ('D-Araf', 'b1-1'),
         ('GlcA2S', 'b1-1'), ('Ara', 'a1-1'), ('Ara', 'b1-1'), ('Araf', 'a1-1'), ('Araf', 'b1-1'), ('Fru', 'a2-1'),
         ('Fru', 'b2-1'), ('ManNAc', 'a1-1'), ('ManNAc', 'b1-1'), ('Fruf', 'a2-1'), ('Fruf', 'b2-1')
     }
@@ -417,8 +417,8 @@ def check_reconstructed_interactions(interaction_dict) :
   # Create a directed graph
   G = nx.Graph()
   # Add nodes and edges from dictionary interactions
-  G.add_edges_from((node, neighbor) 
-                     for node, neighbors in interaction_dict.items() 
+  G.add_edges_from((node, neighbor)
+                     for node, neighbors in interaction_dict.items()
                      for neighbor in neighbors)
   return nx.is_connected(G)
 
@@ -452,7 +452,7 @@ def correct_dataframe(df):
 
 def get_annotation(glycan, pdb_file, threshold=3.5):
   MODIFIED_MONO = {
-        "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac", 
+        "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac",
         "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6PCho",
         "GlcNS6S", "GlcNS3S6S", "Fuc2Me3Me4Me", "Rha2Me3Me"
     }
@@ -541,7 +541,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   glycontact_interactions = [(x + 'f' if any(f'{x}f(' in s for s in valid_fragments) and not any(f'{x}(' in s for s in valid_fragments) else x,
                               y + 'f' if any(f'{y}f(' in s for s in valid_fragments) and not any(f'{y}(' in s for s in valid_fragments) else y)
                              for x, y in glycontact_interactions]
-  if (glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) and 
+  if (glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) and
         check_reconstructed_interactions(interaction_dict)):
         return annotate_pdb_data(df, mapping_dict), interaction_dict
   return pd.DataFrame(), {}
@@ -605,7 +605,7 @@ def multi_glycan_monosaccharide_preference_structure(glycan, monosaccharide, ste
   if stereo is None:
       stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
   mono_tables = get_contact_tables(glycan, stereo=stereo)
-  dict_list = [monosaccharide_preference_structure(dist, monosaccharide, 
+  dict_list = [monosaccharide_preference_structure(dist, monosaccharide,
                                                               threshold, mode) for dist in mono_tables]
   all_values = [v for d in dict_list for v in d.values()]
   if not all_values:
@@ -633,7 +633,7 @@ def get_all_clusters_frequency(fresh=False):
 
 
 def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
-    ### Parse all clusters of all glycans on glycoshape. 
+    ### Parse all clusters of all glycans on glycoshape.
     ### Returns glycans with one major cluster AND glycans with many minor clusters
     ### Classification is performed based on a proportion threshold (default = 70)
     # threshold: proportion that the main cluster must have to be considered as a major cluster
@@ -742,12 +742,9 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
 
 
 def convert_glycan_to_class(glycan):
-    """
-    Converts every monosaccharide(linkage) and single monosaccharide into X, XNAc,XA, XN, dX, Sia, Pen in a glycan string.
-    
+    """Converts every monosaccharide(linkage) and single monosaccharide into X, XNAc,XA, XN, dX, Sia, Pen in a glycan string.
     Parameters:
     - glycan (str): A string representing the glycan in IUPAC format.
-    
     Returns:
     - str: The modified glycan string with each monosaccharide replaced by 'X'.
     """
@@ -760,9 +757,9 @@ def convert_glycan_to_class(glycan):
         'Pen': ['Ara', 'Xyl', 'Rib', 'Lyx', 'Pen'],
         'Sia': ['Neu5Ac', 'Neu5Gc', 'Kdn', 'Sia']
     }
-    MONO_MAP = {mono: class_name for class_name, monos in MONO_CLASSES.items() 
+    MONO_MAP = {mono: class_name for class_name, monos in MONO_CLASSES.items()
                 for mono in monos}
-    CLASS_NAMES = {'Hex': 'X', 'dHex': 'dX', 'HexA': 'XA', 'HexN': 'XN', 
+    CLASS_NAMES = {'Hex': 'X', 'dHex': 'dX', 'HexA': 'XA', 'HexN': 'XN',
                   'HexNAc': 'XNAc', 'Pen': 'Pen', 'Sia': 'Sia'}
     glycan = stemify_glycan(glycan)
     result = []
@@ -777,15 +774,12 @@ def convert_glycan_to_class(glycan):
 
 
 def group_by_silhouette(glycan_list, mode = 'X'):
-    """
-    Take a list of glycans and return a dataframe where they are annotated and sorted by their silhouette.
-    Glycans with the same silhouette share the same branching/topology (example: Neu5Ac(a2-3)Gal(b1-3)[Neu5Ac(a2-6)]GalNAc 
+    """Take a list of glycans and return a dataframe where they are annotated and sorted by their silhouette.
+    Glycans with the same silhouette share the same branching/topology (example: Neu5Ac(a2-3)Gal(b1-3)[Neu5Ac(a2-6)]GalNAc
     and Man(b1-4)GlcNAc(b1-4)[Fuc(a1-6)]GlcNAc share the same silhouette: XX[X]X)
-    
     Parameters:
     - glycan_list (list): A list of glycans in IUPAC format.
     - mode (string): either 'X' or 'class' to convert monosaccharide with Xs or more detailed symbols (X, XNAc, Sia...)
-    
     Returns:
     - Dataframe: The annotated dataframe.
     """
@@ -795,7 +789,7 @@ def group_by_silhouette(glycan_list, mode = 'X'):
         if mode == 'X':
             pattern = re.sub(r'[A-Za-z0-9]+(?:\([^\)]+\))?', 'X', glycan)
         else:
-            pattern = convert_glycan_to_class(glycan)  
+            pattern = convert_glycan_to_class(glycan)
         if pattern not in topo_groups:
             topo_groups[pattern] = len(topo_groups)
         silhouettes[glycan] = {
@@ -827,16 +821,16 @@ def compute_merge_SASA_flexibility(glycan, flex_mode, stereo=None, my_path=None)
     flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
     if sasa.empty:
         return flex_df
-    return pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], 
+    return pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']],
                    on='Monosaccharide_id', how='left')
 
 
 def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None) :
     # map the interaction dict to SASA/Flex values computed to produce a graph with node-level information
     # Create edges from simplified interaction dict
-    edges = {(int(k.split('_')[0]), int(v.split('_')[0])) 
-            for k, values in interaction_dict.items() 
-            for v in values 
+    edges = {(int(k.split('_')[0]), int(v.split('_')[0]))
+            for k, values in interaction_dict.items()
+            for v in values
             if k.split('_')[0] != v.split('_')[0]}
     G = nx.Graph()
     G.add_edges_from(edges)
@@ -854,7 +848,7 @@ def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_
     if torsion_df is not None:
         for _, row in torsion_df.iterrows():
             # Extract the residue numbers from the linkage string
-            res_nums = [match.group() for match in re.finditer(r'\d+', row['linkage'])]  # Gets ["5", "3"] from "5_FUC-3_GAL"
+            res_nums = [match.group() for match in re.finditer(r'(\d+)(?=_)', row['linkage'])]  # Gets ["5", "3"] from "5_FUC-3_GAL"
             edge_key = tuple(sorted([int(res_nums[0]), int(res_nums[1])]))
             torsion_map[edge_key] = {
                 'phi_angle': row['phi'],
@@ -987,7 +981,7 @@ def get_structure_graph(glycan, stereo=None, libr=None):
     return create_glycontact_annotated_graph(glycan, mapping_dict=m_dict, g_contact=G_contact, libr=libr)
 
 
-def check_graph_content(G) : 
+def check_graph_content(G) :
     # Print the nodes and their attributes
     print("Graph Nodes and Their Attributes:")
     for node, attrs in G.nodes(data=True):
@@ -1131,7 +1125,7 @@ def _process_single_glycan(args):
 
 
 def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_cutoff=2.0):
-    """Search for structurally similar glycans by comparing against all available 
+    """Search for structurally similar glycans by comparing against all available
     conformers/structures and keeping the best match for each glycan.
     Args:
         query_glycan: PDB file or coordinates of query structure
@@ -1374,5 +1368,5 @@ def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH', 
             results.append(pucker)
         except ValueError as e:
             print(f"Warning: {str(e)}")
-            continue   
+            continue
     return pd.DataFrame(results)
