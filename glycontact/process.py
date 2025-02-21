@@ -259,8 +259,8 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     """
     # First check if we only have one monosaccharide
     unique_residues = coordinates_df['residue_number'].nunique()
-    carbon_mask = (((~coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE|4CD|0CU', na=False)) & (coordinates_df['atom_name'] == 'C1')) |
-    ((coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE|4CD|0CU', na=False)) & (coordinates_df['atom_name'] == 'C2')))
+    carbon_mask = (((~coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE|4CD|0CU|1CU|1CD', na=False)) & (coordinates_df['atom_name'] == 'C1')) |
+    ((coordinates_df['monosaccharide'].str.contains('NGC|SIA|NGE|4CD|0CU|1CU|1CD', na=False)) & (coordinates_df['atom_name'] == 'C2')))
     oxygen_mask = coordinates_df['atom_name'].isin(['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9'])
     carbons = coordinates_df[carbon_mask]
     oxygens = coordinates_df[oxygen_mask]
@@ -467,7 +467,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
         'VYS3SO3': 'GlcNS3S6S', 'VYS6SO3': 'GlcNS3S6S', 'FUC2MEX': 'Fuc2Me', 'FUC3MEX': 'Fuc3Me', 'FUC4MEX': 'Fuc4Me',
         "QYS3SO3": "GlcNS3S6S", "QYS6SO3": "GlcNS3S6S", "RAM2MEX": "Rha2Me", "RAM3MEX": "Rha3Me"
     }
-  n_glycan = 'Man(b1-4)GlcNAc(b1-4)' in glycan
+  n_glycan = 'Man(b1-4)GlcNAc(b1-4)' in glycan or 'Man(b1-4)[Fuc(a1-3)]GlcNAc' in glycan
   furanose_end = glycan.endswith('f')
   df = correct_dataframe(extract_3D_coordinates(pdb_file))
   if any(mm in glycan for mm in MODIFIED_MONO):
@@ -1213,7 +1213,8 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
             acceptor[acceptor['atom_name'] == o_pos].iloc[0][['x', 'y', 'z']].values.astype(float),
             acceptor[acceptor['atom_name'] == f'C{pos}'].iloc[0][['x', 'y', 'z']].values.astype(float)
         ]
-        next_c = pos + 1 if pos < 6 else pos - 1
+        has_c6 = not acceptor[acceptor['atom_name'] == 'C6'].empty
+        next_c = pos + 1 if (pos < 6 and has_c6) or (pos < 5 and not has_c6) else 1
         coords_psi = [coords_phi[1], coords_phi[2], coords_phi[3],
             acceptor[acceptor['atom_name'] == f'C{next_c}'].iloc[0][['x', 'y', 'z']].values.astype(float)]
         results.append({
