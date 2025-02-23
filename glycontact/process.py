@@ -33,7 +33,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
               'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
               '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a', 'ARB': 'D-Ara(b',
-              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GlcA(b', '3OA': 'GalA(a', 'TOA': 'GlcA(b',
+              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GalA(b', '3OA': 'GalA(a', 'TOA': 'GlcA(b',
               'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b',
               'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
@@ -310,7 +310,7 @@ def extract_binary_interactions_from_PDB(coordinates_df):
     return df[['Atom', 'Column', 'Value']].reset_index(drop=True)
 
 
-def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose_end) :
+def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose_end, d_end) :
   #df is an interaction dataframe as returned by extract_binary_interactions_from_PDB()
   # valid_fragments : obtained from glycowork to ensure that we only append valid monolinks into mapping dict
   # n_glycan : True or False, indicates if the first mannose should be corrected or not
@@ -325,11 +325,19 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
             'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Araf(a1-1)', 'Araf(b1-1)', 'Fru(a2-1)',
             'Fru(b2-1)', 'Fruf(a2-1)', 'Fruf(b2-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
         }
+
+  def d_conversion(mono, trigger, i = 1):
+      if mono.startswith(trigger):
+        d_version = f"D-{mapped_to_check}"
+        if d_version in valid_fragments or (i == 0 and d_end):
+            return d_version
+      return mono
+
   mapping_dict = {'1_ROH': '-R'}
   interaction_dict, interaction_dict2 = {}, {}
   wrong_mannose, individual_entities = [], []
   furanose_map = {'Fru': 'Fruf', 'Gal': 'Galf', 'Ara': 'Araf', 'D-Ara': 'D-Araf'}
-  for _, row in df.iterrows():
+  for i, row in df.iterrows():
         first_mono = row['Atom']
         second_mono = row['Column']
         mono = first_mono.rsplit('_', 1)[0]
@@ -345,9 +353,11 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
             if m in wrong_mannose:
                 m = f"{m.split('_')[0]}_BMA"
         mapped_to_check = f"{map_dict[mono.split('_')[1]]}{first_val}-{last_val})"
+        mapped_to_check = d_conversion(mapped_to_check, 'Ara', i=i)
         mono_type = mapped_to_check.split('(')[0]
         if (mapped_to_check not in valid_fragments and (mapped_to_check not in special_cases or furanose_end) and mono_type in furanose_map):
             mapped_to_check = furanose_map[mono_type] + mapped_to_check[len(mono_type):]
+            mapped_to_check = d_conversion(mapped_to_check, 'Araf')
         if (mapped_to_check in valid_fragments) or (mapped_to_check in special_cases):
             mapped_to_use =  'Man(b1-4)' if (mapped_to_check == 'Man(a1-4)' and n_glycan) else mapped_to_check
             mapping_dict[mono] = mapped_to_use
@@ -367,13 +377,13 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
   return mapping_dict, interaction_dict2
 
 
-def extract_binary_glycontact_interactions(interaction_dict):
+def extract_binary_glycontact_interactions(interaction_dict, mapping_dict):
   # transform the interactions detected in the PDB file into IUPAC binary interactions for further comparison to glycowork
   # interaction_dict formatted as: {'12_GAL': ['12_(b1-4)'], '12_(b1-4)': ['11_NAG'], '13_AFL': ['13_(a1-3)'], '13_(a1-3)': ['11_NAG']}
   result = []
   for k, v in interaction_dict.items():
-      new_k = k.split('_')[1].replace('(', '').replace(')', '') if '(' in k else map_dict[k.split('_')[1]].split('(')[0]
-      new_v = v[0].split('_')[1].replace('(', '').replace(')', '') if '(' in v[0] else map_dict[v[0].split('_')[1]].split('(')[0]
+      new_k = k.split('_')[1].replace('(', '').replace(')', '') if '(' in k else mapping_dict[k].split('(')[0]
+      new_v = v[0].split('_')[1].replace('(', '').replace(')', '') if '(' in v[0] else mapping_dict[v[0]].split('(')[0]
       result.append((new_k, new_v))
   return result
 
@@ -394,8 +404,8 @@ def extract_binary_glycowork_interactions(graph_output):
 def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) :
   # Take two sets of binary interactions to compare them and return any difference other than GlcNAc-a1-1 and a1-1-R (only considered by glycontact)
   ignore_pairs = {
-        ('GlcNAc', 'a1-1'), ('a1-1', ' '), ('a2-1', ' '), ('b2-1', ' '),
-        ('GlcNAc', 'b1-1'), ('b1-1', ' '), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'),
+        ('GlcNAc', 'a1-1'), ('a1-1', '-R'), ('a2-1', '-R'), ('b2-1', '-R'),
+        ('GlcNAc', 'b1-1'), ('b1-1', '-R'), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'),
         ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'),
         ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Man', 'b1-1'), ('Man', 'a1-1'),
         ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'),
@@ -469,6 +479,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
     }
   n_glycan = 'Man(b1-4)GlcNAc(b1-4)' in glycan or 'Man(b1-4)[Fuc(a1-3)]GlcNAc' in glycan
   furanose_end = glycan.endswith('f')
+  d_end = glycan[glycan.rfind('-')-1] == "D"
   df = correct_dataframe(extract_3D_coordinates(pdb_file))
   if any(mm in glycan for mm in MODIFIED_MONO):
         # Process modified glycans
@@ -534,10 +545,10 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           res = res[res.Value < thresh].reset_index(drop=True)
           if len(res) > 0:
               break
-  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments, n_glycan, furanose_end)
+  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments, n_glycan, furanose_end, d_end)
   # Validate against glycowork
   glycowork_interactions = extract_binary_glycowork_interactions(glycan_to_graph(glycan))
-  glycontact_interactions = extract_binary_glycontact_interactions(interaction_dict)
+  glycontact_interactions = extract_binary_glycontact_interactions(interaction_dict, mapping_dict)
   glycontact_interactions = [(x + 'f' if any(f'{x}f(' in s for s in valid_fragments) and not any(f'{x}(' in s for s in valid_fragments) else x,
                               y + 'f' if any(f'{y}f(' in s for s in valid_fragments) and not any(f'{y}(' in s for s in valid_fragments) else y)
                              for x, y in glycontact_interactions]
@@ -879,24 +890,28 @@ def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_
 
 
 def remove_and_concatenate_labels(graph):
+    graph = graph.copy()
     nodes_to_remove = []  # List to store nodes that need to be removed
     # Iterate through nodes in sorted order to ensure proper handling
     for node in sorted(graph.nodes):
-        if node % 2 == 1:  # Odd index
-            neighbors = list(graph.neighbors(node))
-            if len(neighbors) > 1:  # Only connect neighbors if there's more than one
-                for i in range(len(neighbors)):
-                    for j in range(i + 1, len(neighbors)):
-                        graph.add_edge(neighbors[i], neighbors[j])  # Add edge between neighbors
-            predecessor = node - 1  # Get predecessor index
-            if predecessor in graph.nodes:  # Ensure the predecessor exists
-                # Concatenate string_labels
-                predecessor_label = graph.nodes[predecessor].get("string_labels", "")
+        if node % 2 == 1:
+            # When removing a node, look for who points TO it and where it points TO
+            predecessors = list(graph.predecessors(node))
+            successors = list(graph.successors(node))
+            # Connect each node that pointed to this one to each node this one pointed to
+            for pred in predecessors:
+                for succ in successors:
+                    graph.add_edge(pred, succ)
+            # Handle label concatenation
+            predecessor = node - 1
+            if predecessor in graph.nodes:
+                pred_label = graph.nodes[predecessor].get("string_labels", "")
                 current_label = graph.nodes[node].get("string_labels", "")
-                graph.nodes[predecessor]["string_labels"] = predecessor_label + '('+current_label+')'
-            nodes_to_remove.append(node)  # Mark node for removal
+                graph.nodes[predecessor]["string_labels"] = f"{pred_label}({current_label})"
+            nodes_to_remove.append(node)
     # Remove the odd-indexed nodes after processing
     graph.remove_nodes_from(nodes_to_remove)
+    return graph
 
 
 def trim_gcontact(G_contact):
@@ -921,7 +936,7 @@ def compare_graphs_with_attributes(G_contact, G_work):
             and node_attrs1['string_labels'] in node_attrs2['Monosaccharide']
         )
     # Create an isomorphism matcher with the custom node matcher
-    matcher = nx.isomorphism.GraphMatcher(G_work, G_contact, node_match=node_match)
+    matcher = nx.isomorphism.GraphMatcher(G_work.to_undirected(), G_contact, node_match=node_match)
     mapping_dict = {} # format= gcontact_index: gwork_index
     if matcher.is_isomorphic():  # Check if the graphs are isomorphic
         # Extract the mapping of nodes
@@ -956,12 +971,11 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr
         u_mapped = mapping_dict[u]
         v_mapped = mapping_dict[v]
         # Find the node that represents the linkage between u_mapped and v_mapped
-        common_neighbors = set(glycowork_graph.neighbors(u_mapped)) & set(glycowork_graph.neighbors(v_mapped))
-        for linkage_node in common_neighbors:
-            glycowork_graph.nodes[linkage_node].update({
-                'phi_angle': g_contact[u][v]['phi_angle'],
-                'psi_angle': g_contact[u][v]['psi_angle']
-            })
+        linkage_node = (u_mapped + v_mapped) // 2
+        glycowork_graph.nodes[linkage_node].update({
+            'phi_angle': g_contact[u][v]['phi_angle'],
+            'psi_angle': g_contact[u][v]['psi_angle']
+        })
     return glycowork_graph
 
 
@@ -975,7 +989,7 @@ def get_structure_graph(glycan, stereo=None, libr=None):
     torsion_angles = get_glycosidic_torsions(res, datadict)
     G_contact = map_data_to_graph(merged, datadict, ring_conf_df=ring_conf, torsion_df=torsion_angles)
     G_work = glycan_to_nxGraph(glycan)
-    remove_and_concatenate_labels(G_work)
+    G_work = remove_and_concatenate_labels(G_work)
     trim_gcontact(G_contact)
     m_dict = compare_graphs_with_attributes(G_contact, G_work)
     return create_glycontact_annotated_graph(glycan, mapping_dict=m_dict, g_contact=G_contact, libr=libr)
