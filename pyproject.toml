@@ -47,3 +47,6 @@ Documentation = "https://github.com/lthomes/glycontact#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["glycontact"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

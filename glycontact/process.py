@@ -22,7 +22,7 @@ from scipy.optimize import minimize
 from multiprocessing import Pool
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
 from glycowork.motif.annotate import link_find
-from glycowork.motif.processing import canonicalize_iupac, rescue_glycans
+from glycowork.motif.processing import canonicalize_iupac, rescue_glycans, min_process_glycans
 from glycowork.motif.tokenization import stemify_glycan
 import mdtraj as md
 
@@ -112,12 +112,25 @@ def extract_3D_coordinates(pdb_file):
   # Define column names for the DataFrame
   columns = ['record_name', 'atom_number', 'atom_name', 'monosaccharide', 'chain_id', 'residue_number',
            'x', 'y', 'z', 'occupancy', 'temperature_factor', 'element']
-  # Open the PDB file for reading
+  has_protein, has_hetatm = False, False
   with open(pdb_file, 'r') as pdb_f:
-    lines = [line for line in pdb_f if line.startswith('ATOM')]
+    lines = pdb_f.readlines()
+  for line in lines:
+    if line.startswith(('SEQRES', 'DBREF')):  # Protein sequence indicators
+      has_protein = True
+    if line.startswith('HETATM'):
+      has_hetatm = True
+    if has_protein and has_hetatm:
+      break
+  # Open the PDB file for reading
+  if has_protein:
+    relevant_lines = [line for line in lines if line.startswith('HETATM')]
+  else:
+    relevant_lines = [line for line in lines if line.startswith('ATOM')]
   # Read the relevant lines into a DataFrame using fixed-width format
-  return pd.read_fwf(StringIO(''.join(lines)), names=columns, colspecs=[(0, 6), (6, 11), (12, 16), (17, 20), (20, 22), (22, 26),
+  out = pd.read_fwf(StringIO(''.join(relevant_lines)), names=columns, colspecs=[(0, 6), (6, 11), (12, 16), (17, 20), (20, 22), (22, 26),
                                                      (30, 38), (38, 46), (46, 54), (54, 60), (60, 66), (76, 78)])
+  return out[out.monosaccharide.isin(map_dict)].reset_index(drop=True)
 
 
 def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
@@ -353,7 +366,7 @@ def extract_binary_interactions_from_PDB(coordinates_df):
   return df[['Atom', 'Column', 'Value']].reset_index(drop=True) if len(df) > 0 else df
 
 
-def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose_end, d_end) :
+def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose_end, d_end, is_protein_complex):
   """Creates mapping dictionaries for converting PDB residue names to IUPAC notation.
   Args:
       df (pd.DataFrame): Interaction dataframe from extract_binary_interactions_from_PDB.
@@ -361,6 +374,7 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
       n_glycan (bool): If True, applies N-glycan-specific corrections.
       furanose_end (bool): If True, considers furanose forms for terminal residues.
       d_end (bool): If True, considers D-form for terminal residues.
+      is_protein_complex (bool): If True, assumes glycan comes from protein-glycan PDB
   Returns:
       tuple: (mapping_dict, interaction_dict) for PDB to IUPAC conversion.
   """
@@ -405,6 +419,11 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
     mapped_to_check = f"{map_dict[mono.split('_')[1]]}{first_val}-{last_val})"
     mapped_to_check = d_conversion(mapped_to_check, 'Ara', i=i)
     mono_type = mapped_to_check.split('(')[0]
+    if i == 0 and is_protein_complex:
+     mapped_to_check2 = f"{map_dict[second_mono_base.split('_')[1]]}1-1)"
+     mapped_to_check2 = f"{map_dict[second_mono_base.split('_')[1]].split('(')[0]}"
+     if mapped_to_check2 in valid_fragments:
+       mapping_dict[second_mono_base] = f"{map_dict[second_mono_base.split('_')[1]]}1-1)"
     if (mapped_to_check not in valid_fragments and (mapped_to_check not in special_cases or furanose_end) and mono_type in furanose_map):
       mapped_to_check = furanose_map[mono_type] + mapped_to_check[len(mono_type):]
       mapped_to_check = d_conversion(mapped_to_check, 'Araf')
@@ -562,6 +581,17 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   furanose_end = glycan.endswith('f')
   d_end = glycan[glycan.rfind('-')-1] == "D"
   df = correct_dataframe(extract_3D_coordinates(pdb_file))
+  is_protein_complex = df['record_name'].iloc[0] == 'HETATM' 
+  # Handle multiple instances of a single monosaccharide in protein complexes
+  if is_protein_complex and ')' not in glycan:
+    results = []
+    for res_num in df['residue_number'].unique():
+      instance_df = df[df['residue_number'] == res_num].copy()
+      mono_type = instance_df['monosaccharide'].iloc[0]
+      # Create instance-specific mapping dictionary using the global map_dict
+      instance_mapping = {f"{res_num}_{mono_type}": map_dict.get(mono_type, mono_type)}
+      results.append((annotate_pdb_data(instance_df, instance_mapping), {}))
+    return results
   if any(mm in glycan for mm in MODIFIED_MONO):
     # Process modified glycans
     to_modify_dict = {}
@@ -614,7 +644,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           df.loc[mask, 'residue_number'] = int(new_residue)
     df = df.sort_values('residue_number')
   # Extract and validate linkages
-  valid_fragments = {x.split(')')[0] + ')' for x in link_find(glycan)}
+  valid_fragments = {x.split(')')[0] + ')' for x in link_find(glycan)} | ({min_process_glycans([glycan])[0][-1]} if is_protein_complex else set())
   res = extract_binary_interactions_from_PDB(df)
   if isinstance(threshold, float) or isinstance(threshold, int):
     res = res[res.Value < threshold].reset_index(drop=True)
@@ -623,7 +653,8 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
       res = res[res.Value < thresh].reset_index(drop=True)
       if len(res) > 0:
         break
-  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments, n_glycan, furanose_end, d_end)
+  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments,
+                                                                        n_glycan, furanose_end, d_end, is_protein_complex)
   # Validate against glycowork
   glycowork_interactions = extract_binary_glycowork_interactions(glycan_to_graph(glycan))
   glycontact_interactions = extract_binary_glycontact_interactions(interaction_dict, mapping_dict)
