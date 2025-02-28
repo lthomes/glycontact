@@ -34,9 +34,10 @@ dependencies = [
     "scipy",
     "requests",
     "mdtraj",
-    "glycowork>=1.5",
+    "glycowork @ git+https://github.com/BojarLab/glycowork.git@dev",
     "imageio",
-    "py3Dmol"
+    "py3Dmol",
+    "tqdm"
 ]
 
 [project.urls]

@@ -207,7 +207,7 @@ def test_glycan_cluster_pattern():
 
 def test_get_structure_graph():
     result = get_structure_graph(TEST_GLYCAN)
-    assert isinstance(result, nx.DiGraph)
+    assert isinstance(result, nx.Graph)
     assert len(result.nodes) > 0
     assert len(result.edges) > 0
 

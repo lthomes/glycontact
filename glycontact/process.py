@@ -1419,9 +1419,13 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
   mono_type = residue['monosaccharide'].iloc[0]
   is_l_sugar = mono_type in {'FUC', 'RAM', 'ARA'}
   # Get ring atoms based on monosaccharide type
-  is_sialic = 'SIA' in mono_type or 'NGC' in mono_type
+  iupac_type = residue['IUPAC'].iloc[0]
+  is_sialic = any(x in iupac_type for x in {'Neu', 'Kdn'})
+  is_furanose = any(x in iupac_type for x in {'Araf', 'Galf', 'Fruf'})
   if is_sialic:  # 9-atom sialic acid rings
     ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6', 'O6']
+  elif is_furanose:  # 5-membered furanose rings
+    ring_atoms = ['C1', 'C2', 'C3', 'C4', 'O4']
   else:  # Standard 6-membered pyranose rings
     ring_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
   # Extract coordinates of ring atoms
@@ -1452,8 +1456,7 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
   qm = np.zeros(n//2)
   phi = np.zeros(n//2)
   for m in range(n//2):
-    qm_sin = 0
-    qm_cos = 0
+    qm_sin, qm_cos = 0, 0
     for j in range(n):
       angle = 2 * np.pi * (m + 1) * j / n
       qm_sin += zj[j] * np.sin(angle)
@@ -1462,63 +1465,68 @@ def calculate_ring_pucker(df: pd.DataFrame, residue_number: int) -> Dict:
     phi[m] = np.degrees(np.arctan2(qm_sin, qm_cos)) % 360
   # Total puckering amplitude
   Q = np.sqrt(np.sum(qm**2))
+  conformation = "Unknown"
   # Phase angle θ
-  if is_sialic:
-    # For sialic acid rings (using second largest amplitude)
-    theta = np.degrees(np.arccos(qm[2] / Q))
-    # Adjust the phase angle calculation for the larger ring
-    phi = [np.degrees(np.arctan2(
+  if is_furanose:  # For 5-membered rings, there are only two puckering parameters (q2 and φ2)
+    q2 = qm[0]  # First (and only meaningful) puckering coordinate
+    # For furanoses, use φ2 to determine conformation
+    theta = phi[0]
+    # Envelope and twist conformations for furanoses
+    if q2 < 0.1:  # Almost planar
+      conformation = "Planar"
+    else:  # Determine envelope or twist based on the phase angle
+      envelope_types = {0: "C3-endo", 72: "C4-endo", 144: "O4-endo", 216: "C1-endo", 288: "C2-endo"}
+      twist_types = {36: "3T4", 108: "4TO", 180: "OT1", 252: "1T2", 324: "2T3"}
+      if abs(theta % 72) < 18:  # Within 18° of a multiple of 72°
+        # Envelope conformations (E)
+        closest_angle = round(theta / 72) * 72
+        conformation = envelope_types.get(closest_angle % 360, "")
+      else:
+        # Twist conformations (T)
+        closest_angle = round((theta - 36) / 72) * 72 + 36
+        conformation = twist_types.get(closest_angle % 360, "")
+  else:
+    if is_sialic:
+      # For sialic acid rings (using second largest amplitude)
+      theta = np.degrees(np.arccos(qm[2] / Q))
+      # Adjust the phase angle calculation for the larger ring
+      phi = [np.degrees(np.arctan2(
         np.sum([zj[j] * np.sin(2 * np.pi * (m + 1) * j / n) for j in range(n)]),
         np.sum([zj[j] * np.cos(2 * np.pi * (m + 1) * j / n) for j in range(n)])
         )) % 360 for m in range(n//2)]
-  else:
-    # For 6-membered rings
-    q2 = qm[1]  # Second puckering coordinate
-    q3 = qm[2]  # Third puckering coordinate
-    theta = np.degrees(np.arctan2(q2, q3))
-  # Determine conformation
-  conformation = "Unknown"
-  if is_sialic:
-    # More detailed classification for sialic acids
-    # Sialic acids typically prefer a 2C5 chair conformation
-    if theta < 30:
-      conformation = "2C5"  # Most common in nature
-    elif theta > 150:
-      conformation = "5C2"  # Less common inverted chair
-    elif theta < 90:
-      # Add more specific boat type based on phi
-      phi_main = phi[2]  # Use different phi for 9-membered ring
-      if 330 <= phi_main or phi_main < 30:
-        conformation = "B2,5"
-      elif 150 <= phi_main < 210:
-        conformation = "B3,O6"
-    else:
-        conformation = "S3,5"  # Most common skew form
-  else:
-    if theta < 45:
-      conformation = "4C1" if not is_l_sugar else "1C4"
-    elif theta > 135:
-      conformation = "1C4" if not is_l_sugar else "4C1"
-    else:
-      # Check for boat/skew-boat
-      boat_types = {
-            0: "B1,4", 60: "B2,5", 120: "B3,6",
-            180: "B1,4", 240: "B2,5", 300: "B3,6"
-            }
-      skew_types = {
-            30: "1S3", 90: "2S6", 150: "3S1",
-            210: "4S2", 270: "5S3", 330: "6S4"
-            }
-      phi_main = phi[1]  # Main pseudorotational angle
-      # Find closest reference angle
-      if abs(phi_main % 60) < 30:
-        # Boat conformation
-        closest_angle = round(phi_main / 60) * 60
-        conformation = boat_types.get(closest_angle % 360, "")
+      # Determine conformation
+      if theta < 30:  # Sialic acids typically prefer a 2C5 chair conformation
+        conformation = "2C5"
+      elif theta > 150:
+        conformation = "5C2"  # Less common inverted chair
+      elif theta < 90:
+        phi_main = phi[2]
+        conformation = "B2,5" if (330 <= phi_main or phi_main < 30) else "B3,O6" if (150 <= phi_main < 210) else "S3,5"
       else:
-        # Skew-boat conformation
-        closest_angle = round((phi_main - 30) / 60) * 60 + 30
-        conformation = skew_types.get(closest_angle % 360, "")
+        conformation = "S3,5"  # Most common skew form
+    else:
+      # For 6-membered rings
+      q2, q3 = qm[1], qm[2]  # Second/Third puckering coordinate
+      theta = np.degrees(np.arctan2(q2, q3))
+      # Determine conformation
+      if theta < 45:
+        conformation = "4C1" if not is_l_sugar else "1C4"
+      elif theta > 135:
+        conformation = "1C4" if not is_l_sugar else "4C1"
+      else:
+        # Check for boat/skew-boat
+        boat_types = {0: "B1,4", 60: "B2,5", 120: "B3,6", 180: "B1,4", 240: "B2,5", 300: "B3,6"}
+        skew_types = {30: "1S3", 90: "2S6", 150: "3S1", 210: "4S2", 270: "5S3", 330: "6S4"}
+        phi_main = phi[1]  # Main pseudorotational angle
+        # Find closest reference angle
+        if abs(phi_main % 60) < 30:
+          # Boat conformation
+          closest_angle = round(phi_main / 60) * 60
+          conformation = boat_types.get(closest_angle % 360, "")
+        else:
+          # Skew-boat conformation
+          closest_angle = round((phi_main - 30) / 60) * 60 + 30
+          conformation = skew_types.get(closest_angle % 360, "")
   return {
     'residue': residue_number,
     'monosaccharide': mono_type,
