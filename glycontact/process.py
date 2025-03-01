@@ -311,6 +311,28 @@ def extract_binary_interactions_from_PDB(coordinates_df):
   Args:
       coordinates_df (pd.DataFrame): Coordinate dataframe from extract_3D_coordinates.
   Returns:
+      pd.DataFrame or list of pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' 
+      showing interactions. Returns a list of DataFrames if multiple chains are present.
+  """
+  # Check if multiple chains exist
+  unique_chains = coordinates_df['chain_id'].unique()
+  if len(unique_chains) > 1:
+    results = []
+    for chain in unique_chains:
+      chain_df = coordinates_df[coordinates_df['chain_id'] == chain]
+      chain_result = process_interactions(chain_df)
+      if not chain_result.empty:
+        results.append(chain_result)
+    return results
+  else:
+    return process_interactions(coordinates_df)
+
+
+def process_interactions(coordinates_df):
+  """Extracts binary interactions between C1/C2 atoms and oxygen atoms from coordinates.
+  Args:
+      coordinates_df (pd.DataFrame): Coordinate dataframe from extract_3D_coordinates.
+  Returns:
       pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' showing interactions.
   """
   # First check if we only have one monosaccharide
@@ -343,8 +365,7 @@ def extract_binary_interactions_from_PDB(coordinates_df):
             })
   else:
     for i, c_label in enumerate(c_labels):
-      c_res = c_residues[i]
-      mask = (o_residues != c_res)
+      mask = (o_residues != c_residues[i])
       if np.any(mask):
         relevant_o_coords = o_coords[mask]
         distances = np.abs(relevant_o_coords - c_coords[i]).sum(axis=1)
@@ -552,6 +573,29 @@ def correct_dataframe(df):
   return df
 
 
+def process_interactions_result(res, threshold, valid_fragments, n_glycan, furanose_end, d_end, is_protein_complex, glycan, df):
+  """Process a single interaction result and return the annotation if valid."""
+  if isinstance(threshold, float) or isinstance(threshold, int):
+    res = res[res.Value < threshold].reset_index(drop=True)
+  else:
+    for thresh in sorted(threshold):
+      res = res[res.Value < thresh].reset_index(drop=True)
+      if len(res) > 0:
+        break
+  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments,
+                                                                      n_glycan, furanose_end, d_end, is_protein_complex)
+  # Validate against glycowork
+  glycowork_interactions = extract_binary_glycowork_interactions(glycan_to_graph(glycan))
+  glycontact_interactions = extract_binary_glycontact_interactions(interaction_dict, mapping_dict)
+  glycontact_interactions = [(x + 'f' if any(f'{x}f(' in s for s in valid_fragments) and not any(f'{x}(' in s for s in valid_fragments) else x,
+                            y + 'f' if any(f'{y}f(' in s for s in valid_fragments) and not any(f'{y}(' in s for s in valid_fragments) else y)
+                           for x, y in glycontact_interactions]
+  if (glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) and
+      check_reconstructed_interactions(interaction_dict)):
+    return annotate_pdb_data(df, mapping_dict), interaction_dict
+  return pd.DataFrame(), {}
+
+
 def get_annotation(glycan, pdb_file, threshold=3.5):
   """Annotates a PDB file with IUPAC nomenclature for a given glycan.
   Args:
@@ -646,25 +690,28 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   # Extract and validate linkages
   valid_fragments = {x.split(')')[0] + ')' for x in link_find(glycan)} | ({min_process_glycans([glycan])[0][-1]} if is_protein_complex else set())
   res = extract_binary_interactions_from_PDB(df)
-  if isinstance(threshold, float) or isinstance(threshold, int):
-    res = res[res.Value < threshold].reset_index(drop=True)
+  # Handle case where extract_binary_interactions_from_PDB returns a list of DataFrames (multiple chains)
+  if isinstance(res, list):
+    expected_residue_count = glycan.count('(') + 1
+    # Try each chain's result and use the first one that successfully validates
+    for chain_res in res:
+      if not chain_res.empty:
+        max_residue = max(
+          max([int(atom.split('_')[0]) for atom in chain_res['Atom']]),
+          max([int(col.split('_')[0]) for col in chain_res['Column']])
+        )
+        if max_residue != expected_residue_count:
+          continue
+      result = process_interactions_result(chain_res, threshold, valid_fragments, 
+                                         n_glycan, furanose_end, d_end, is_protein_complex, glycan, df)
+      if result[0] is not None:  # If validation succeeded
+        return result
+    # If no chain validates successfully
+    return pd.DataFrame(), {}
   else:
-    for thresh in sorted(threshold):
-      res = res[res.Value < thresh].reset_index(drop=True)
-      if len(res) > 0:
-        break
-  mapping_dict, interaction_dict = create_mapping_dict_and_interactions(res, valid_fragments,
-                                                                        n_glycan, furanose_end, d_end, is_protein_complex)
-  # Validate against glycowork
-  glycowork_interactions = extract_binary_glycowork_interactions(glycan_to_graph(glycan))
-  glycontact_interactions = extract_binary_glycontact_interactions(interaction_dict, mapping_dict)
-  glycontact_interactions = [(x + 'f' if any(f'{x}f(' in s for s in valid_fragments) and not any(f'{x}(' in s for s in valid_fragments) else x,
-                              y + 'f' if any(f'{y}f(' in s for s in valid_fragments) and not any(f'{y}(' in s for s in valid_fragments) else y)
-                             for x, y in glycontact_interactions]
-  if (glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_interactions) and
-        check_reconstructed_interactions(interaction_dict)):
-    return annotate_pdb_data(df, mapping_dict), interaction_dict
-  return pd.DataFrame(), {}
+    # Original single-chain behavior
+    return process_interactions_result(res, threshold, valid_fragments, 
+                                     n_glycan, furanose_end, d_end, is_protein_complex, glycan, df)
 
 
 @rescue_glycans
