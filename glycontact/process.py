@@ -43,6 +43,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a", "TOA2SO3": "GalA2S(a",
               "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a",
               "FUC2MEX3MEX4MEX": "Fuc2Me3Me4Me(a", "QYS3SO36SO3": "GlcNAc3S6S(a", "VYS3SO36SO3": "GlcNS3S6S(a", "NDG3SO36SO3": "GlcNS3S6S(a", "RAM2MEX3MEX": "Rha2Me3Me(a"}
+NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
 
 PACKAGE_ROOT = Path(__file__).parent.parent
 global_path = PACKAGE_ROOT / 'glycans_pdb/'
@@ -109,6 +110,7 @@ def extract_3D_coordinates(pdb_file):
       pd.DataFrame: DataFrame containing extracted atom coordinates with columns for
                    atom information, coordinates, and properties.
   """
+  permitted = set(map_dict.keys()) | NON_MONO
   # Define column names for the DataFrame
   columns = ['record_name', 'atom_number', 'atom_name', 'monosaccharide', 'chain_id', 'residue_number',
            'x', 'y', 'z', 'occupancy', 'temperature_factor', 'element']
@@ -123,14 +125,11 @@ def extract_3D_coordinates(pdb_file):
     if has_protein and has_hetatm:
       break
   # Open the PDB file for reading
-  if has_protein:
-    relevant_lines = [line for line in lines if line.startswith('HETATM')]
-  else:
-    relevant_lines = [line for line in lines if line.startswith('ATOM')]
+  relevant_lines = [line for line in lines if line.startswith('HETATM')] if has_protein else [line for line in lines if line.startswith('ATOM')]
   # Read the relevant lines into a DataFrame using fixed-width format
   out = pd.read_fwf(StringIO(''.join(relevant_lines)), names=columns, colspecs=[(0, 6), (6, 11), (12, 16), (17, 20), (20, 22), (22, 26),
                                                      (30, 38), (38, 46), (46, 54), (54, 60), (60, 66), (76, 78)])
-  return out[out.monosaccharide.isin(map_dict)].reset_index(drop=True)
+  return out[out.monosaccharide.isin(permitted)].reset_index(drop=True)
 
 
 def make_atom_contact_table(coord_df, threshold = 10, mode = 'exclusive') :
@@ -544,6 +543,7 @@ def annotate_pdb_data(pdb_dataframe, mapping_dict) :
       pd.DataFrame: Annotated dataframe with IUPAC column.
   """
   m_dict = copy.deepcopy(mapping_dict)
+  pdb_dataframe = pdb_dataframe.copy()
   for m, v in m_dict.items():
     if "BMA" in m:
       mapping_dict[f"{m.split('_')[0]}_MAN"] = v #restore the corrected mannose into a wrong one for annotation
@@ -610,7 +610,6 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
         "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6PCho",
         "GlcNS6S", "GlcNS3S6S", "Fuc2Me3Me4Me", "Rha2Me3Me", "GalA2S"
     }
-  NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
   CUSTOM_PDB = {
         "NAG6SO3": "GlcNAc6S", "NDG6SO3": "GlcNAc6S", "NDG3SO3": "GlcNAc3S6S",
         "NGA4SO3": "GalNAc4S", "IDR2SO3": "IdoA2S", "BDP3SO3": "GlcA3S", "TOA2SO3": "GalA2S",
@@ -692,9 +691,10 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   res = extract_binary_interactions_from_PDB(df)
   # Handle case where extract_binary_interactions_from_PDB returns a list of DataFrames (multiple chains)
   if isinstance(res, list):
+    chain_ids = df.chain_id.unique()
     expected_residue_count = glycan.count('(') + 1
     # Try each chain's result and use the first one that successfully validates
-    for chain_res in res:
+    for i, chain_res in enumerate(res):
       if not chain_res.empty:
         max_residue = max(
           max([int(atom.split('_')[0]) for atom in chain_res['Atom']]),
@@ -703,7 +703,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
         if max_residue != expected_residue_count:
           continue
       result = process_interactions_result(chain_res, threshold, valid_fragments, 
-                                         n_glycan, furanose_end, d_end, is_protein_complex, glycan, df)
+                                         n_glycan, furanose_end, d_end, is_protein_complex, glycan, df[df.chain_id==chain_ids[i]])
       if result[0] is not None:  # If validation succeeded
         return result
     # If no chain validates successfully
@@ -864,29 +864,38 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
   Returns:
       pd.DataFrame: Table with SASA values and statistics for each monosaccharide.
   """
-  mods = {'SO3', 'ACX', 'MEX', 'PCX'}
+  is_single_pdb = my_path is not None and "." in my_path
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
   if my_path is None:
     pdb_dir = global_path / glycan
     pdb_files = sorted(pdb_dir / pdb for pdb in os.listdir(pdb_dir) if stereo in pdb)
   else:
-    pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*"))
-  weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
-  weights = np.tile(weights, 2) if len(weights) != len(pdb_files) else weights
-  weights = [1.0]*len(pdb_files) if len(weights) != len(pdb_files) else weights
+    pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*")) if not is_single_pdb else [my_path]
   df = pd.DataFrame()
   for pdb_file in pdb_files:
-    df, _ = get_annotation(glycan, pdb_file, threshold=3.5)
+    df, _ = get_annotation(glycan, pdb_file)
     if len(df) > 0:
       break
   if len(df) < 1:
     return pd.DataFrame(columns=['Monosaccharide_id', 'Monosaccharide', 'SASA', 'Standard Deviation', 'Coefficient of Variation'])
+  if not is_single_pdb:
+    weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
+    weights = np.tile(weights, 2) if len(weights) != len(pdb_files) else weights
+    weights = [1.0]*len(pdb_files) if len(weights) != len(pdb_files) else weights
+  else:
+    weights = [1.0]
   residue_modifications = df.set_index('residue_number')['IUPAC'].to_dict()
   # Process each PDB file
   sasa_values = {}
   for pdb_file in pdb_files:
     structure = md.load(pdb_file)
+    if is_single_pdb:
+        glycan_residues = set(df['residue_number'])
+        atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq in glycan_residues or 
+                     (atom.residue.name in NON_MONO and atom.residue.resSeq in [r.resSeq for r in structure.topology.residues 
+                       if r.resSeq in glycan_residues])]
+        structure = structure.atom_slice(atom_indices)
     sasa = md.shrake_rupley(structure, mode='atom')
     # Group SASA by residue
     mono_sasa, modification_to_parent = {}, {}
@@ -899,7 +908,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
           if 'PCho' in resName:
             modification_to_parent[res.resSeq] = resSeq
             break
-      elif res.name not in mods:
+      elif res.name not in NON_MONO:
         parent_resSeq = res.resSeq
       else:
         # If this is a modification, assign it to the last seen non-modification residue
@@ -910,7 +919,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
       res = atom.residue
       res_seq = res.resSeq
       # If this is a modification residue, get its parent's resSeq
-      if res.name in mods and res_seq in modification_to_parent:
+      if res.name in NON_MONO and res_seq in modification_to_parent:
         parent_resSeq = modification_to_parent[res_seq]
         if parent_resSeq not in mono_sasa:
           mono_sasa[parent_resSeq] = {
@@ -919,7 +928,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
                 }
         mono_sasa[parent_resSeq]['sasa'] += sasa[0][atom.index]
         continue
-      if res.name in mods:
+      if res.name in NON_MONO:
         continue
       if res_seq not in mono_sasa:
         mono_sasa[res_seq] = {'resName': residue_modifications.get(res_seq, res.name), 'sasa': 0}
@@ -939,13 +948,21 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
     }
   for resSeq, data in stats.items():
     values = np.array(data['values'])
-    mean = np.mean(values)
+    resName = data['resName']
+    #if is_single_pdb and '(' not in resName:
+     # continue
     df_data['Monosaccharide_id'].append(resSeq)
-    df_data['Monosaccharide'].append(data['resName'])
-    df_data['SASA'].append(np.average(values, weights=weights))
-    std = np.std(values)
-    df_data['Standard Deviation'].append(std)
-    df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
+    df_data['Monosaccharide'].append(resName)
+    if is_single_pdb:
+      df_data['SASA'].append(values[0])
+      df_data['Standard Deviation'].append(float('nan'))
+      df_data['Coefficient of Variation'].append(float('nan'))
+    else:
+      mean = np.mean(values)
+      df_data['SASA'].append(np.average(values, weights=weights))
+      std = np.std(values)
+      df_data['Standard Deviation'].append(std)
+      df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
   return pd.DataFrame(df_data)
 
 
@@ -1005,34 +1022,31 @@ def group_by_silhouette(glycan_list, mode = 'X'):
   return df.sort_values('topological_group')
 
 
-def global_monosaccharide_instability(variability_table, mode='sum'):
-  """Summarizes monosaccharide variability across all clusters of a glycan.
-  Args:
-      variability_table (pd.DataFrame): Table from inter_structure_variability_table.
-      mode (str): 'sum' or 'mean' for aggregation method.
-  Returns:
-      list: Sorted list of (residue, variability) tuples.
-  """
-  residue_stability = variability_table.sum() if mode == 'sum' else variability_table.mean()
-  return sorted(residue_stability.items(), key=lambda x: x[1])
-
-
-def compute_merge_SASA_flexibility(glycan, flex_mode, stereo=None, my_path=None) :
+def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path=None) :
   """Merges SASA and flexibility data for a glycan structure.
   Args:
       glycan (str): IUPAC glycan sequence.
-      flex_mode (str): 'standard', 'amplify', or 'weighted' for flexibility calculation.
+      mode (str, optional): 'standard', 'amplify', or 'weighted' for flexibility calculation.
       stereo (str, optional): 'alpha' or 'beta' stereochemistry.
       my_path (str, optional): Custom path to PDB folders.
   Returns:
-      pd.DataFrame: Combined table with SASA and flexibility metrics.
+      pd.DataFrame: Combined table with SASA and flexibility (as RMSF) metrics.
   """
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
   sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
-  flex = inter_structure_variability_table(glycan, stereo=stereo, mode=flex_mode, my_path=None)
-  flex_df = pd.DataFrame(global_monosaccharide_instability(flex), columns=['Monosaccharide_id_Monosaccharide', 'flexibility'])
-  flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
+  if my_path is not None and "." in my_path:
+    df, _ = get_annotation(glycan, my_path)
+    flexibility = df.groupby('residue_number')['temperature_factor'].mean()
+    flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
+    monosaccharides = df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
+    flex_df = pd.DataFrame({'Monosaccharide_id': df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
+  else:
+    flex = (inter_structure_variability_table(glycan, stereo=stereo, mode=mode, my_path=my_path)).mean()
+    conversion_factor = np.sqrt(np.pi/2)  # converts mean absolute deviation to standard deviation
+    flex_rmsf = {monosac: value * conversion_factor for monosac, value in flex.items()}
+    flex_df = pd.DataFrame(sorted(flex_rmsf.items(), key=lambda x: x[1]), columns=['Monosaccharide_id_Monosaccharide', 'flexibility'])
+    flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
   if sasa.empty:
     return flex_df
   return pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], on='Monosaccharide_id', how='left')
@@ -1134,7 +1148,7 @@ def trim_gcontact(G_contact):
       None: Modifies graph in-place.
   """
   # Remove node 1 which corresponds to -R, absent from G_work
-  if 1 in G_contact:
+  if 1 in G_contact and G_contact.nodes[1].get("Monosaccharide") == "-R":
     neighbors = list(G_contact.neighbors(1))  # Get the neighbors of node 1
     if len(neighbors) > 1:  # If node 1 has more than one neighbor
       for i in range(len(neighbors)):
@@ -1168,7 +1182,7 @@ def compare_graphs_with_attributes(G_contact, G_work):
       mapping_dict[node_g2] = node_g
   else:
     print("The graphs are not isomorphic with the given attribute constraints.")
-  return(mapping_dict)
+  return mapping_dict
 
 
 def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr=None) -> nx.Graph:
@@ -1210,20 +1224,22 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr
   return glycowork_graph
 
 
-def get_structure_graph(glycan, stereo=None, libr=None):
+def get_structure_graph(glycan, stereo=None, libr=None, my_path=None):
   """Creates a complete annotated structure graph for a glycan.
   Args:
       glycan (str): IUPAC glycan sequence.
       stereo (str, optional): 'alpha' or 'beta' stereochemistry.
       libr (dict, optional): Custom library for glycan_to_nxGraph.
+      my_path (str, optional): Path to a specific PDB.
   Returns:
       nx.Graph: Fully annotated structure graph with all available properties.
   """
   glycan = canonicalize_iupac(glycan)
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
-  merged = compute_merge_SASA_flexibility(glycan, 'weighted', stereo=stereo)
-  res, datadict = get_annotation(glycan, get_example_pdb(glycan, stereo=stereo), threshold=3.5)
+  merged = compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=stereo, my_path=my_path)
+  example = my_path if my_path is not None else get_example_pdb(glycan, stereo=stereo)
+  res, datadict = get_annotation(glycan, example, threshold=3.5)
   ring_conf = get_ring_conformations(res)
   torsion_angles = get_glycosidic_torsions(res, datadict)
   G_contact = map_data_to_graph(merged, datadict, ring_conf_df=ring_conf, torsion_df=torsion_angles)

@@ -37,7 +37,8 @@ dependencies = [
     "glycowork[draw] @ git+https://github.com/BojarLab/glycowork.git@dev",
     "imageio",
     "py3Dmol",
-    "tqdm"
+    "tqdm",
+    "IPython"
 ]
 
 [project.urls]
