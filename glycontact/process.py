@@ -28,7 +28,7 @@ import mdtraj as md
 
 # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
 # GalNAc is recorded as "GLC" which is wrong: need for a checker function that counts the number of atoms - Glc = 21 (<25), GalNAc = 28 (>25)
-map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a',
+map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a', 'MBG':'Gal1Me(b',
               'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'D-Fuc(a', 'GYE':'dFucf(b',
               'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b', '2kA': 'L-Gul(a', '0mA': 'L-Man(a',
               'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
@@ -44,6 +44,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
               "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a",
               "FUC2MEX3MEX4MEX": "Fuc2Me3Me4Me(a", "QYS3SO36SO3": "GlcNAc3S6S(a", "VYS3SO36SO3": "GlcNS3S6S(a", "NDG3SO36SO3": "GlcNS3S6S(a", "RAM2MEX3MEX": "Rha2Me3Me(a"}
 NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
+BETA = {'GlcNAc', 'Glc', 'Xyl'}
 
 PACKAGE_ROOT = Path(__file__).parent.parent
 global_path = PACKAGE_ROOT / 'glycans_pdb/'
@@ -126,6 +127,17 @@ def extract_3D_coordinates(pdb_file):
       break
   # Open the PDB file for reading
   relevant_lines = [line for line in lines if line.startswith('HETATM')] if has_protein else [line for line in lines if line.startswith('ATOM')]
+  # Handle NMR structures by adding model number to chain IDs
+  if has_protein and has_hetatm and any(line.startswith('MODEL') for line in lines):
+    modified_lines, current_model = [], 0
+    for line in lines:
+      if line.startswith('MODEL'):
+        current_model = int(line.split()[1])
+      elif line.startswith('HETATM'):
+        # Modify chain ID by adding model number (at position 21)
+        modified_line = f"{line[:21]}{chr(ord('A') + current_model - 1)}{line[22:]}"
+        modified_lines.append(modified_line)
+    relevant_lines = modified_lines
   # Read the relevant lines into a DataFrame using fixed-width format
   out = pd.read_fwf(StringIO(''.join(relevant_lines)), names=columns, colspecs=[(0, 6), (6, 11), (12, 16), (17, 20), (20, 22), (22, 26),
                                                      (30, 38), (38, 46), (46, 54), (54, 60), (60, 66), (76, 78)])
@@ -215,7 +227,7 @@ def get_contact_tables(glycan, stereo=None, level="monosaccharide", my_path=None
       list: List of contact tables for each PDB structure.
   """
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   dfs, _ = annotation_pipeline(glycan, pdb_file=my_path, threshold=3.5, stereo=stereo)
   if level == "monosaccharide":
     return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs if len(df) > 0]
@@ -242,7 +254,7 @@ def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_p
   if len(dfs) < 1:
     return pd.DataFrame()
   if stereo is None and isinstance(glycan, str):
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   columns = dfs[0].columns
   values_array = np.array([df.values for df in dfs])
   mean_values = np.mean(values_array, axis=0)
@@ -273,7 +285,7 @@ def make_correlation_matrix(glycan, stereo=None, my_path=None):
   elif isinstance(glycan, list):
     dfs = glycan
   if stereo is None and isinstance(glycan, str):
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   # Create an empty correlation matrix
   corr_sum = np.zeros((len(dfs[0]), len(dfs[0])))
   # Calculate the correlation matrix based on the distances
@@ -298,7 +310,7 @@ def inter_structure_frequency_table(glycan, stereo=None, threshold = 5, my_path=
   elif isinstance(glycan, list):
     dfs = glycan
   if stereo is None and isinstance(glycan, str):
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   # Apply thresholding and create a new list of transformed DataFrames
   binary_arrays = [df.values < threshold for df in dfs]
   # Sum up the transformed DataFrames to create the final DataFrame
@@ -349,7 +361,7 @@ def process_interactions(coordinates_df):
   c_labels = [f"{r}_{m}_{a}" for r, m, a in zip(carbons['residue_number'], carbons['monosaccharide'], carbons['atom_name'])]
   o_labels = [f"{r}_{m}_{a}" for r, m, a in zip(oxygens['residue_number'], oxygens['monosaccharide'], oxygens['atom_name'])]
   interactions = []
-  if unique_residues == 2:
+  if unique_residues == 2 and "ROH" in coordinates_df.monosaccharide.tolist():
     roh_oxygens = oxygens[oxygens['monosaccharide'] == 'ROH']
     if not roh_oxygens.empty:
       roh_coord = roh_oxygens[['x', 'y', 'z']].values[0]
@@ -364,7 +376,7 @@ def process_interactions(coordinates_df):
             })
   else:
     for i, c_label in enumerate(c_labels):
-      mask = (o_residues != c_residues[i])
+      mask = (o_residues < c_residues[i])
       if np.any(mask):
         relevant_o_coords = o_coords[mask]
         distances = np.abs(relevant_o_coords - c_coords[i]).sum(axis=1)
@@ -476,8 +488,8 @@ def extract_binary_glycontact_interactions(interaction_dict, mapping_dict):
   """
   result = []
   for k, v in interaction_dict.items():
-    new_k = k.split('_')[1].replace('(', '').replace(')', '') if '(' in k else mapping_dict[k].split('(')[0]
-    new_v = v[0].split('_')[1].replace('(', '').replace(')', '') if '(' in v[0] else mapping_dict[v[0]].split('(')[0]
+    new_k = k.split('_')[1].replace('(', '').replace(')', '') if '(' in k else mapping_dict.get(k, '').split('(')[0]
+    new_v = v[0].split('_')[1].replace('(', '').replace(')', '') if '(' in v[0] else mapping_dict.get(v[0], '').split('(')[0]
     result.append((new_k, new_v))
   return result
 
@@ -575,6 +587,8 @@ def correct_dataframe(df):
 
 def process_interactions_result(res, threshold, valid_fragments, n_glycan, furanose_end, d_end, is_protein_complex, glycan, df):
   """Process a single interaction result and return the annotation if valid."""
+  if len(res) < 1:
+    return pd.DataFrame(), {}
   if isinstance(threshold, float) or isinstance(threshold, int):
     res = res[res.Value < threshold].reset_index(drop=True)
   else:
@@ -624,6 +638,8 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   furanose_end = glycan.endswith('f')
   d_end = glycan[glycan.rfind('-')-1] == "D"
   df = correct_dataframe(extract_3D_coordinates(pdb_file))
+  if len(df) < 1:
+    return pd.DataFrame(), {}
   is_protein_complex = df['record_name'].iloc[0] == 'HETATM' 
   # Handle multiple instances of a single monosaccharide in protein complexes
   if is_protein_complex and ')' not in glycan:
@@ -634,7 +650,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
       # Create instance-specific mapping dictionary using the global map_dict
       instance_mapping = {f"{res_num}_{mono_type}": map_dict.get(mono_type, mono_type)}
       results.append((annotate_pdb_data(instance_df, instance_mapping), {}))
-    return results
+    return zip(*results)
   if any(mm in glycan for mm in MODIFIED_MONO):
     # Process modified glycans
     to_modify_dict = {}
@@ -726,7 +742,7 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
       tuple: (dataframes_list, interaction_dicts_list) for all processed PDBs.
   """
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if pdb_file is None:
     pdb_file = os.listdir(global_path / glycan)
     pdb_file = [global_path / glycan / pdb for pdb in pdb_file if stereo in pdb]
@@ -748,7 +764,7 @@ def get_example_pdb(glycan, stereo=None, rng=None):
   if rng is None:
     rng = Random(42)
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   pdb_file = os.listdir(global_path / glycan)
   return global_path / glycan / rng.choice([pdb for pdb in pdb_file if stereo in pdb])
 
@@ -797,7 +813,7 @@ def multi_glycan_monosaccharide_preference_structure(glycan, monosaccharide, ste
       None: Displays a bar plot of partner frequencies.
   """
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   mono_tables = get_contact_tables(glycan, stereo=stereo)
   dict_list = [monosaccharide_preference_structure(dist, monosaccharide, threshold, mode) for dist in mono_tables]
   all_values = [v for d in dict_list for v in d.values()]
@@ -866,7 +882,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
   """
   is_single_pdb = my_path is not None and "." in my_path
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if my_path is None:
     pdb_dir = global_path / glycan
     pdb_files = sorted(pdb_dir / pdb for pdb in os.listdir(pdb_dir) if stereo in pdb)
@@ -1033,7 +1049,7 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
       pd.DataFrame: Combined table with SASA and flexibility (as RMSF) metrics.
   """
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
   if my_path is not None and "." in my_path:
     df, _ = get_annotation(glycan, my_path)
@@ -1236,7 +1252,7 @@ def get_structure_graph(glycan, stereo=None, libr=None, my_path=None):
   """
   glycan = canonicalize_iupac(glycan)
   if stereo is None:
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in {'GlcNAc', 'Glc', 'Xyl'}) else 'alpha'
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   merged = compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=stereo, my_path=my_path)
   example = my_path if my_path is not None else get_example_pdb(glycan, stereo=stereo)
   res, datadict = get_annotation(glycan, example, threshold=3.5)
