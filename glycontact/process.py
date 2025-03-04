@@ -28,19 +28,19 @@ import mdtraj as md
 
 # MAN indicates either alpha and beta bonds, instead of just alpha.. this is a problem
 # GalNAc is recorded as "GLC" which is wrong: need for a checker function that counts the number of atoms - Glc = 21 (<25), GalNAc = 28 (>25)
-map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a', 'MBG':'Gal1Me(b',
-              'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'D-Fuc(a', 'GYE':'dFucf(b',
-              'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b', '2kA': 'L-Gul(a', '0mA': 'L-Man(a',
-              'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a',
-              'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a',
-              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a', 'ARB': 'D-Ara(b',
-              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GalA(b', '3OA': 'GalA(a', 'TOA': 'GalA(a',
-              'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b',
+map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL':'Fuc(a', 'MBG':'Gal1Me(b', 'AMG':'Gal1Me(a', 'MMA':'Man1Me(a', '2F8':'GlcNAc1Me(a',
+              'FUC':'Fuc(a', 'FUL':'Fuc(b', 'FCA':'dFuc(a', 'FCB':'dFuc(b', '0FA':'D-Fuc(a', 'GYE':'dFucf(b', 'M6P':'Man6P(a', 'MAG':'GlcNAc1Me(b', 'SGA': 'Gal3S(b', 'SEJ':'D-Ara(b', '64K':'D-Ara(a',
+              'GAL':'Gal(b', 'GLA':'Gal(a', 'GIV':'lGal(b', 'GXL':'lGal(a', 'GZL':'Galf(b', '2kA': 'L-Gul(a', '0mA': 'L-Man(a', 'GYP':'Glc1Me(a', 'MFU':'Fuc1Me', 'MFB':'Fuc1Me(b', 'MNA':'Neu2Me5Ac(a',
+              'GLC':'Glc(a', '0WB':'ManNAc(b', 'ZAD':'Ara(b', '0aU':'Ara(b', '2aU':'Ara(b', '3aU':'Ara(b', '0aD':'Ara(a', '2aD':'Ara(a', '3aD':'Ara(a', 'YIO':'Gal1S(b', 'BDF':'Fru(b', 'RIP':'Rib(b',
+              'IDR':'IdoA(a', 'RAM':'Rha(a', 'RHM':'Rha(b', 'RM4':'Rha(b', 'XXR':'dRha(a', '0aU': 'Araf(b', '2aU': 'Araf(b', '3aU': 'Araf(b', 'ZaU': 'Araf(a', 'TYV':'Tyv(a', 'ABE':'Abe(a',
+              '0AU':'Ara(b', '2AU':'Ara(b', '3AU':'Ara(b', '0AD':'Ara(a', '2AD':'Ara(a', '3AD':'Ara(a', '3HA': 'D-Rha(a', 'ARB': 'D-Ara(b', 'MUR': 'MurNAc(b', 'MGC':'GalNAc1Me(a',
+              'A2G':'GalNAc(a', 'NGA': 'GalNAc(b', 'YYQ':'lGlcNAc(a', 'XYP':'Xyl(b', 'XYS':'Xyl(a', 'WOA': 'GalA(b', '3OA': 'GalA(a', 'TOA': 'GalA(a', 'GCV':'GlcA4Me(a', 'VDV':'Allf(a', 'VDS':'Allf(b',
+              'XYZ':'Xylf(b', '1CU': 'Fru(b',  '0CU': 'Fru(b', '4CD': 'Fru(a', '1CD': 'Fru(a', 'LXC':'lXyl(b', 'HSY':'lXyl(a', 'SIA':'Neu5Ac(a', 'SLB':'Neu5Ac(b', 'FRU': 'Fru(b', 'AHR':'Araf(a',
               'NGC':'Neu5Gc(a', 'NGE':'Neu5Gc(b', 'BDP':'GlcA(b', 'GCU':'GlcA(a','VYS':'GlcNS(a', '0YS':'GlcNS(a', '4YS':'GlcNS(a', '6YS':'GlcNS(a', 'UYS':'GlcNS(a', 'QYS':'GlcNS(a', 'GCS':'GlcN(b',
-              'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a',
+              'PA1':'GlcN(a', 'ROH':' ', 'BGC':'Glc(b', '0OA':'GalA(a', '4OA':'GalA(a', 'BCA':'2-4-diacetimido-2-4-6-trideoxyhexose(a', 'ASO':'1,5-Anhydro-Glc(?', 'L6N':'Glc6Me(?',
               "NAG6SO3":"GlcNAc6S(b", "NDG6SO3":"GlcNAc6S(a", "GLC4SO3":"GalNAc4S(b", "NGA4SO3":"GalNAc4S(b", 'A2G4SO3':'GalNAc4S(a', "IDR2SO3":"IdoA2S(a",
-              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(a", "MAN3MEX":"Man3Me(a",
-              "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a", "TOA2SO3": "GalA2S(a",
+              "BDP3SO3":"GlcA3S(b", "BDP2SO3":"GlcA2S(b", "GCU2SO3":"GlcA2S(a", "SIA9ACX":"Neu5Ac9Ac(a", "MAN3MEX":"Man3Me(a", '5N6':'Neu5Ac9Ac(a', 'PKM':'Neu4Ac5Ac(a',
+              "SIA9MEX":"Neu5Ac9Me(a", "NGC9MEX":"Neu5Gc9Me(a", "BDP4MEX":"GlcA4Me(b", "GAL6SO3":"Gal6S(b", "NDG3SO3":"GlcNAc3S6S(a", "TOA2SO3": "GalA2S(a", 'GN1':'GlcNAc1P(a',
               "NAG6PCX":"GlcNAc6PCho(b", "UYS6SO3":"GlcNS6S(a", 'VYS3SO3':'GlcNS3S6S(a',  'VYS6SO3':'GlcNS3S6S(a', "QYS3SO3":"GlcNS3S6S(a", "QYS6SO3":"GlcNS3S6S(a", "4YS6SO3":"GlcNS6S(a", "6YS6SO3":"GlcNS6S(a",
               "FUC2MEX3MEX4MEX": "Fuc2Me3Me4Me(a", "QYS3SO36SO3": "GlcNAc3S6S(a", "VYS3SO36SO3": "GlcNS3S6S(a", "NDG3SO36SO3": "GlcNS3S6S(a", "RAM2MEX3MEX": "Rha2Me3Me(a"}
 NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
@@ -127,14 +127,14 @@ def extract_3D_coordinates(pdb_file):
       break
   # Open the PDB file for reading
   relevant_lines = [line for line in lines if line.startswith('HETATM')] if has_protein else [line for line in lines if line.startswith('ATOM')]
-  # Handle NMR structures by adding model number to chain IDs
+  # Handle NMR structures by relabeling chain IDs
   if has_protein and has_hetatm and any(line.startswith('MODEL') for line in lines):
     modified_lines, current_model = [], 0
     for line in lines:
       if line.startswith('MODEL'):
         current_model = int(line.split()[1])
       elif line.startswith('HETATM'):
-        # Modify chain ID by adding model number (at position 21)
+        # Relabel chain ID (at position 21)
         modified_line = f"{line[:21]}{chr(ord('A') + current_model - 1)}{line[22:]}"
         modified_lines.append(modified_line)
     relevant_lines = modified_lines
@@ -348,7 +348,7 @@ def process_interactions(coordinates_df):
   """
   # First check if we only have one monosaccharide
   unique_residues = coordinates_df['residue_number'].nunique()
-  c2_pattern = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD'
+  c2_pattern = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM'
   carbon_mask = (((~coordinates_df['monosaccharide'].str.contains(c2_pattern, na=False)) & (coordinates_df['atom_name'] == 'C1')) |
                  ((coordinates_df['monosaccharide'].str.contains(c2_pattern, na=False)) & (coordinates_df['atom_name'] == 'C2')))
   oxygen_mask = coordinates_df['atom_name'].isin({'O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9'})
@@ -413,7 +413,7 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
   special_cases = {
             'Man(a1-4)', '-R', 'GlcNAc(a1-1)', 'GlcNAc(b1-1)', 'GalNAc(a1-1)',
             'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)',
-            'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)',
+            'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Neu5Ac(a1-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)',
             'Gal(b1-1)', 'Fuc(a1-1)', 'Fuc(b1-1)', 'Xyl(a1-1)', 'Xyl(b1-1)', 'L-Gul(a1-1)',  'L-Gul(b1-1)',
             'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)',
             'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)',
@@ -518,7 +518,7 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
         ('GlcNAc', 'a1-1'), ('a1-1', '-R'), ('a2-1', '-R'), ('b2-1', '-R'),
         ('GlcNAc', 'b1-1'), ('b1-1', '-R'), ('GalNAc', 'a1-1'), ('GalNAc', 'b1-1'),
         ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'),
-        ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Man', 'b1-1'), ('Man', 'a1-1'),
+        ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Neu5Ac', 'a1-1'), ('Man', 'b1-1'), ('Man', 'a1-1'),
         ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'),
         ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'),
         ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'),
@@ -574,11 +574,13 @@ def correct_dataframe(df):
   Returns:
       pd.DataFrame: Corrected dataframe with fixed monosaccharide assignments.
   """
-  c_counts = df[df['element'] == 'C'].groupby('residue_number').size()
+  c_counts = df[df['element'] == 'C'].groupby(['chain_id', 'residue_number']).size()
   high_carbon_residues = c_counts[c_counts >= 7].index
   # Create masks for GLC and BGC replacements
-  glc_mask = (df['monosaccharide'] == 'GLC') & df['residue_number'].isin(high_carbon_residues)
-  bgc_mask = (df['monosaccharide'] == 'BGC') & df['residue_number'].isin(high_carbon_residues)
+  glc_mask = df.apply(lambda row: (row['monosaccharide'] == 'GLC') and 
+                     (row['chain_id'], row['residue_number']) in high_carbon_residues, axis=1)
+  bgc_mask = df.apply(lambda row: (row['monosaccharide'] == 'BGC') and 
+                     (row['chain_id'], row['residue_number']) in high_carbon_residues, axis=1)
   # Apply replacements
   df.loc[glc_mask, 'monosaccharide'] = 'NGA'
   df.loc[bgc_mask, 'monosaccharide'] = 'A2G'
@@ -619,11 +621,6 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   Returns:
       tuple: (annotated_dataframe, interaction_dict) or (empty_dataframe, {}) if validation fails.
   """
-  MODIFIED_MONO = {
-        "GlcNAc6S", "GalNAc4S", "IdoA2S", "GlcA3S", "GlcA2S", "Neu5Ac9Ac",
-        "Man3Me", "Neu5Ac9Me", "Neu5Gc9Me", "GlcA4Me", "Gal6S", "GlcNAc6PCho",
-        "GlcNS6S", "GlcNS3S6S", "Fuc2Me3Me4Me", "Rha2Me3Me", "GalA2S"
-    }
   CUSTOM_PDB = {
         "NAG6SO3": "GlcNAc6S", "NDG6SO3": "GlcNAc6S", "NDG3SO3": "GlcNAc3S6S",
         "NGA4SO3": "GalNAc4S", "IDR2SO3": "IdoA2S", "BDP3SO3": "GlcA3S", "TOA2SO3": "GalA2S",
@@ -638,6 +635,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   furanose_end = glycan.endswith('f')
   d_end = glycan[glycan.rfind('-')-1] == "D"
   df = correct_dataframe(extract_3D_coordinates(pdb_file))
+  unique_residues = set(df.monosaccharide.unique())
   if len(df) < 1:
     return pd.DataFrame(), {}
   is_protein_complex = df['record_name'].iloc[0] == 'HETATM' 
@@ -651,7 +649,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
       instance_mapping = {f"{res_num}_{mono_type}": map_dict.get(mono_type, mono_type)}
       results.append((annotate_pdb_data(instance_df, instance_mapping), {}))
     return zip(*results)
-  if any(mm in glycan for mm in MODIFIED_MONO):
+  if any(mm in unique_residues for mm in NON_MONO):
     # Process modified glycans
     to_modify_dict = {}
     dist_table = make_atom_contact_table(df)
@@ -720,7 +718,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           continue
       result = process_interactions_result(chain_res, threshold, valid_fragments, 
                                          n_glycan, furanose_end, d_end, is_protein_complex, glycan, df[df.chain_id==chain_ids[i]])
-      if result[0] is not None:  # If validation succeeded
+      if len(result[0]) > 0:  # If validation succeeded
         return result
     # If no chain validates successfully
     return pd.DataFrame(), {}
@@ -744,8 +742,13 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if pdb_file is None:
-    pdb_file = os.listdir(global_path / glycan)
-    pdb_file = [global_path / glycan / pdb for pdb in pdb_file if stereo in pdb]
+    glycan_path = global_path / glycan
+    if not os.path.exists(glycan_path):
+      raise FileNotFoundError(f"No directory found for glycan: {glycan}")
+    pdb_file = os.listdir(glycan_path)
+    pdb_file = [glycan_path / pdb for pdb in pdb_file if stereo in pdb]
+    if not pdb_file:
+      raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
   if isinstance(pdb_file, str):
     pdb_file = [pdb_file]
   dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold) for pdb in pdb_file])
@@ -765,8 +768,14 @@ def get_example_pdb(glycan, stereo=None, rng=None):
     rng = Random(42)
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  pdb_file = os.listdir(global_path / glycan)
-  return global_path / glycan / rng.choice([pdb for pdb in pdb_file if stereo in pdb])
+  glycan_path = global_path / glycan
+  if not os.path.exists(glycan_path):
+    raise FileNotFoundError(f"No directory found for glycan: {glycan}")
+  pdb_file = os.listdir(glycan_path)
+  matching_pdbs = [pdb for pdb in pdb_file if stereo in pdb]
+  if not matching_pdbs:
+    raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
+  return glycan_path / rng.choice(matching_pdbs)
 
 
 def monosaccharide_preference_structure(df, monosaccharide, threshold, mode='default'):
