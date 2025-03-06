@@ -5,7 +5,7 @@ import networkx as nx
 import re
 import os
 import copy
-from collections import Counter
+from collections import Counter, defaultdict
 import subprocess
 import json
 import requests
@@ -20,6 +20,7 @@ from typing import Tuple, Dict, List
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
 from multiprocessing import Pool
+from glycowork.glycan_data.loader import DataFrameSerializer
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
 from glycowork.motif.annotate import link_find
 from glycowork.motif.processing import canonicalize_iupac, rescue_glycans, min_process_glycans
@@ -46,7 +47,7 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
             "SIO":"Neu4Ac5Ac9Ac(a", "1GN":"GalN(b", "KD5":"4,7-Anhydro-Kdof(a", "BDR":"Ribf(b", "G1P":"Glc1P(a", "3LJ":"GlcN6S(a", "SGN":"GlcNS6S(a", "95Z":"ManN(a", "GCS":"GlcN(b", "ADA":"GalA(a",
             "GTR":"GalA(b", "3MG":"Glc3Me(b", "ZB1":"Glc3Me(a", "NGS":"GlcNAc6S(b", "ANA":"Neu2Me4Ac5Ac(a", "M6D":"Man6P(b", "G6S":"Gal6S(b", "GL0":"Gul(b", "ZEL":"D-Alt1Me(b", "EGA":"Gal1Et(b",
             "ARA":"Ara(a", "2FG":"Gal2F(b", "MN0":"Neu2Me5Gc(a", "PZU":"Par(a", "A1Q":"LDManHepOMe(a", "GQ1":"Glc4S(a", "G4S":"Gal4S(b", "6S2":"GlcNAc1Me6S(b", "6C2":"GlcNAcA1Me(b",
-            "X6X":"GalN(a", "TVD":"GlcNAc1NAc(b"}
+            "X6X":"GalN(a", "TVD":"GlcNAc1NAc(b", "MJJ":"Neu2Me5Ac9Ac(a", "K5B":"4,7-Anhydro-Kdof(b"}
 NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
 BETA = {'GlcNAc', 'Glc', 'Xyl'}
 
@@ -58,6 +59,53 @@ with open(json_path) as f:
     glycoshape_mirror = json.load(f)
 with open(this_dir / "glycan_graphs.pkl", "rb") as file:
     structure_graphs = pickle.load(file)
+
+
+class ComplexDictSerializer(DataFrameSerializer):
+  """Extends DataFrameSerializer with methods to handle complex defaultdict structures."""
+
+  @classmethod
+  def serialize_complex_dict(cls, data_dict: defaultdict, path: str) -> None:
+    """Serialize a defaultdict of (DataFrame, dict) tuples to a single JSON file"""
+    # Convert defaultdict to a serializable structure
+    serialized_dict = {}
+    for key, tuple_list in data_dict.items():
+      serialized_dict[str(key)] = []
+      for df, d in tuple_list:
+        # Serialize DataFrame to a dict
+        serialized_df = {
+          'columns': list(df.columns),
+          'index': list(df.index),
+          'data': [[cls._serialize_cell(val) for val in row] for _, row in df.iterrows()]
+        }
+        serialized_dict[str(key)].append((serialized_df, d))
+    # Write to file
+    with open(path, 'w') as f:
+      json.dump(serialized_dict, f)
+  
+  @classmethod
+  def deserialize_complex_dict(cls, path: str) -> defaultdict:
+    """Deserialize a defaultdict of (DataFrame, dict) tuples from a single JSON file"""
+    with open(path, 'r') as f:
+      serialized_dict = json.load(f)
+    result = defaultdict(list)
+    for key, pairs in serialized_dict.items():
+      for serialized_df, d in pairs:
+        # Deserialize DataFrame
+        deserialized_data = []
+        for row in serialized_df['data']:
+          deserialized_row = [cls._deserialize_cell(cell) for cell in row]
+          deserialized_data.append(deserialized_row)
+        df = pd.DataFrame(
+          data=deserialized_data,
+          columns=serialized_df['columns'],
+          index=serialized_df['index']
+        )
+        result[key].append((df, d))
+    return result
+
+
+unilectin_data = ComplexDictSerializer.deserialize_complex_dict(this_dir / "unilectin_data.json")
 
 
 def get_glycoshape_IUPAC(fresh=False):
@@ -355,7 +403,7 @@ def process_interactions(coordinates_df):
   c2_pattern = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM'
   carbon_mask = (((~coordinates_df['monosaccharide'].str.contains(c2_pattern, na=False)) & (coordinates_df['atom_name'] == 'C1')) |
                  ((coordinates_df['monosaccharide'].str.contains(c2_pattern, na=False)) & (coordinates_df['atom_name'] == 'C2')))
-  oxygen_mask = coordinates_df['atom_name'].isin({'O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9'})
+  oxygen_mask = coordinates_df['atom_name'].isin({'O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9', 'S1'})
   carbons = coordinates_df[carbon_mask]
   oxygens = coordinates_df[oxygen_mask]
   c_coords = carbons[['x', 'y', 'z']].values
@@ -456,10 +504,11 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
     mapped_to_check = d_conversion(mapped_to_check, 'Ara', i=i)
     mono_type = mapped_to_check.split('(')[0]
     if i == 0 and is_protein_complex:
-     mapped_to_check2 = f"{map_dict[second_mono_base.split('_')[1]]}1-1)"
      mapped_to_check2 = f"{map_dict[second_mono_base.split('_')[1]].split('(')[0]}"
      if mapped_to_check2 in valid_fragments:
        mapping_dict[second_mono_base] = f"{map_dict[second_mono_base.split('_')[1]]}1-1)"
+     elif f"{mapped_to_check2}f" in valid_fragments:
+       mapping_dict[second_mono_base] = f"{furanose_map[mapped_to_check2]}{map_dict[second_mono_base.split('_')[1]][len(mapped_to_check2):]}1-1)"
     if (mapped_to_check not in valid_fragments and (mapped_to_check not in special_cases or furanose_end) and mono_type in furanose_map):
       mapped_to_check = furanose_map[mono_type] + mapped_to_check[len(mono_type):]
       mapped_to_check = d_conversion(mapped_to_check, 'Araf')
@@ -625,6 +674,8 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   Returns:
       tuple: (annotated_dataframe, interaction_dict) or (empty_dataframe, {}) if validation fails.
   """
+  if isinstance(pdb_file, tuple):
+    return pdb_file
   CUSTOM_PDB = {
         "NAG6SO3": "GlcNAc6S", "NDG6SO3": "GlcNAc6S", "NDG3SO3": "GlcNAc3S6S",
         "NGA4SO3": "GalNAc4S", "IDR2SO3": "IdoA2S", "BDP3SO3": "GlcA3S", "TOA2SO3": "GalA2S",
@@ -749,9 +800,13 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
   if pdb_file is None:
     glycan_path = global_path / glycan
     if not os.path.exists(glycan_path):
-      raise FileNotFoundError(f"No directory found for glycan: {glycan}")
-    pdb_file = os.listdir(glycan_path)
-    pdb_file = [glycan_path / pdb for pdb in pdb_file if stereo in pdb]
+      if glycan in unilectin_data:
+        pdb_file = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0])]
+      else:
+        raise FileNotFoundError(f"No directory found for glycan: {glycan}")
+    else:
+      pdb_file = os.listdir(glycan_path)
+      pdb_file = [glycan_path / pdb for pdb in pdb_file if stereo in pdb]
     if not pdb_file:
       raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
   if isinstance(pdb_file, str):
@@ -775,6 +830,9 @@ def get_example_pdb(glycan, stereo=None, rng=None):
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   glycan_path = global_path / glycan
   if not os.path.exists(glycan_path):
+    if glycan in unilectin_data:
+        matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0])]
+        return rng.choice(matching_pdbs)
     raise FileNotFoundError(f"No directory found for glycan: {glycan}")
   pdb_file = os.listdir(glycan_path)
   matching_pdbs = [pdb for pdb in pdb_file if stereo in pdb]
