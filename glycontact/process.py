@@ -76,7 +76,8 @@ class ComplexDictSerializer(DataFrameSerializer):
         serialized_df = {
           'columns': list(df.columns),
           'index': list(df.index),
-          'data': [[cls._serialize_cell(val) for val in row] for _, row in df.iterrows()]
+          'data': [[cls._serialize_cell(val) for val in row] for _, row in df.iterrows()],
+          'dtypes': {col: str(df[col].dtype) for col in df.columns}
         }
         serialized_dict[str(key)].append((serialized_df, d))
     # Write to file
@@ -101,6 +102,16 @@ class ComplexDictSerializer(DataFrameSerializer):
           columns=serialized_df['columns'],
           index=serialized_df['index']
         )
+        if 'dtypes' in serialized_df:
+          for col, dtype_str in serialized_df['dtypes'].items():
+            if col in df.columns:
+              try:
+                if 'int' in dtype_str:
+                  df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                elif 'float' in dtype_str:
+                  df[col] = pd.to_numeric(df[col], errors='coerce')
+              except:
+                pass
         result[key].append((df, d))
     return result
 
@@ -801,7 +812,7 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
     glycan_path = global_path / glycan
     if not os.path.exists(glycan_path):
       if glycan in unilectin_data:
-        pdb_file = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0])]
+        pdb_file = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
       else:
         raise FileNotFoundError(f"No directory found for glycan: {glycan}")
     else:
@@ -831,7 +842,7 @@ def get_example_pdb(glycan, stereo=None, rng=None):
   glycan_path = global_path / glycan
   if not os.path.exists(glycan_path):
     if glycan in unilectin_data:
-        matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0])]
+        matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
         return rng.choice(matching_pdbs)
     raise FileNotFoundError(f"No directory found for glycan: {glycan}")
   pdb_file = os.listdir(glycan_path)
