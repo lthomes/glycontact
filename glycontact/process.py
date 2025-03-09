@@ -22,7 +22,7 @@ from scipy.optimize import minimize
 from multiprocessing import Pool
 from glycowork.glycan_data.loader import DataFrameSerializer
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
-from glycowork.motif.annotate import link_find
+from glycowork.motif.annotate import get_k_saccharides
 from glycowork.motif.processing import canonicalize_iupac, rescue_glycans, min_process_glycans
 from glycowork.motif.tokenization import stemify_glycan
 import mdtraj as md
@@ -768,7 +768,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           df.loc[mask, 'residue_number'] = int(new_residue)
     df = df.sort_values('residue_number')
   # Extract and validate linkages
-  valid_fragments = {x.split(')')[0] + ')' for x in link_find(glycan)} | ({min_process_glycans([glycan])[0][-1]} if is_protein_complex else set())
+  valid_fragments = {x.split(')')[0] + ')' for x in get_k_saccharides([glycan], just_motifs=True)[0]} | ({min_process_glycans([glycan])[0][-1]} if is_protein_complex else set())
   res = extract_binary_interactions_from_PDB(df)
   # Handle case where extract_binary_interactions_from_PDB returns a list of DataFrames (multiple chains)
   if isinstance(res, list):
