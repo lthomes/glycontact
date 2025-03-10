@@ -10,13 +10,17 @@ import py3Dmol
 import datetime
 from io import BytesIO
 from pathlib import Path
+from scipy import stats
 from scipy.cluster import hierarchy
 from collections import Counter
+from typing import Dict, Tuple, List, Optional, Union
 from IPython.display import Image, display, HTML
-from glycontact.process import (inter_structure_variability_table, get_structure_graph,
+from glycontact.process import (inter_structure_variability_table, get_structure_graph, structure_graphs,
                                 monosaccharide_preference_structure, map_dict, get_example_pdb, extract_3D_coordinates)
+from glycowork.glycan_data.stats import cohen_d
 from glycowork.motif.draw import GlycoDraw
 from glycowork.motif.processing import canonicalize_iupac, rescue_glycans
+from glycowork.motif.graph import compare_glycans
 
 
 def draw_contact_map(act, filepath='', size = 0.5, return_plot=False) :
@@ -514,3 +518,261 @@ def plot_superimposed_glycans(superposition_result, filepath='', animate=True, r
   if animate:
     view.spin(True)
   return view
+
+
+def calculate_average_metric(graph, pattern_in, metric):
+  """Calculate average of the specified metric across all nodes in the graph.
+  Excludes nodes related to the pattern to ensure fair comparison.
+  Args:
+    graph: NetworkX DiGraph of glycan structure
+    pattern: Pattern to exclude from calculation
+    metric: Metric to average
+  Returns:
+    Average value of metric across non-pattern nodes
+  """
+  pattern_nodes = []
+  pattern = pattern_in.replace('[', '').replace(']', '')
+  for node, attrs in graph.nodes(data=True):
+    if pattern in attrs.get('string_labels', '') or pattern in attrs.get('Monosaccharide', ''):
+      pattern_nodes.append(node)
+  predecessor_nodes = []
+  for pattern_node in pattern_nodes:
+    pred = list(graph.predecessors(pattern_node))
+    if pred:  # Each node has exactly one predecessor
+      pred = list(graph.predecessors(pred[0]))
+      if pred:
+        predecessor_nodes.append(pred[0])
+  exclude_nodes = set(pattern_nodes + predecessor_nodes)
+  metric_values = []
+  for node, attrs in graph.nodes(data=True):
+    if node in exclude_nodes:
+      continue
+    if metric not in attrs or not isinstance(attrs[metric], (int, float)):
+      continue
+    metric_values.append(attrs[metric])
+  if not metric_values:
+    return 0.0
+  return sum(metric_values) / len(metric_values)
+
+
+def find_difference(glycans, pattern=None, alternative=None, metric="SASA", struc_dict=structure_graphs, plot=False):
+  """Analyze differences in glycan properties between twin pairs based on pattern presence/absence or pattern substitution.
+  Args:
+    glycans: List of glycan structures to analyze
+    pattern: String pattern to analyze (e.g., "[Fuc(a1-6)]") for presence/absence comparison
+    alternative: String pattern to compare against the first pattern (e.g., "a2-6" vs "a2-3")
+                When provided, function compares substitution rather than presence/absence
+    metric: Property to compare (default: "SASA")
+    struc_dict: Dictionary of glycan structure graphs
+    plot: Whether to generate and return a visualization (default: False)
+  Returns:
+    Dictionary with statistical analysis results
+  """
+  if struc_dict is None:
+    raise ValueError("structure_graphs dictionary must be provided")
+  twins = []
+  if alternative is None:
+    # Case 1: Presence/absence comparison (original functionality)
+    if pattern is None:
+      raise ValueError("pattern must be provided for presence/absence comparison")
+    for g in glycans:
+      if pattern in g:
+        twin = [t for t in glycans if compare_glycans(t, g.replace(pattern,""))]
+        if twin:
+          twins.append((g, twin[0]))
+  else:
+    # Case 2: Substitution comparison
+    if pattern is None:
+      raise ValueError("pattern must be provided along with alternative")
+    for g in glycans:
+      if pattern in g:
+        # Create the alternative version by substituting the pattern
+        alt_version = g.replace(pattern, alternative)
+        # Check if the alternative version exists in the dataset
+        twin = [t for t in glycans if compare_glycans(t, alt_version)]
+        if twin:
+          twins.append((g, twin[0]))
+  # Continue with the original analysis
+  with_pattern_values, without_pattern_values = [], []
+  for with_pat, without_pat in twins:
+    graph_with = struc_dict.get(with_pat, '')
+    graph_without = struc_dict.get(without_pat, '')
+    if not (graph_with and graph_without):
+      continue
+    with_pat_value = calculate_average_metric(graph_with, pattern if alternative is None else pattern, metric)
+    without_pat_value = calculate_average_metric(graph_without, pattern if alternative is None else alternative, metric)
+    with_pattern_values.append(with_pat_value)
+    without_pattern_values.append(without_pat_value)
+  with_pattern_array = np.array(with_pattern_values)
+  without_pattern_array = np.array(without_pattern_values)
+  differences = with_pattern_array - without_pattern_array
+  ttest_result = stats.ttest_rel(with_pattern_array, without_pattern_array)
+  effect_size, _ = cohen_d(with_pattern_array, without_pattern_array, paired=True)
+  # Create descriptive labels based on the comparison type
+  if alternative is None:
+    label_with = f'With {pattern}'
+    label_without = f'Without {pattern}'
+  else:
+    label_with = f'With {pattern}'
+    label_without = f'With {alternative}'
+  results = {
+    "pattern": pattern,
+    "alternative": alternative,
+    "metric": metric,
+    "n_pairs": len(with_pattern_values),
+    "with_pattern_mean": np.mean(with_pattern_array),
+    "without_pattern_mean": np.mean(without_pattern_array),
+    "mean_difference": np.mean(differences),
+    "median_difference": np.median(differences),
+    "std_difference": np.std(differences),
+    "ttest_statistic": ttest_result.statistic,
+    "ttest_pvalue": ttest_result.pvalue,
+    "significant": ttest_result.pvalue < 0.05,
+    "effect_size": effect_size,
+    "raw_with_pattern": with_pattern_array.tolist(),
+    "raw_without_pattern": without_pattern_array.tolist(),
+    "twins": twins  # Include the identified twin pairs in the results
+  }
+  if plot:
+    fig, ax = plt.subplots(figsize=(10, 6))
+    data = {
+      label_without: without_pattern_array,
+      label_with: with_pattern_array
+    }
+    sns.boxplot(data=data, ax=ax, width=0.5, palette="Set2")
+    positions = [0, 1]
+    # For connecting lines, use fixed positions without jitter
+    for i in range(len(with_pattern_array)):
+      ax.plot([positions[0], positions[1]], 
+              [without_pattern_array[i], with_pattern_array[i]], 
+              'k-', alpha=0.2, linewidth=0.5)
+    # Add jittered points on top of lines
+    for i, (label, values) in enumerate(data.items()):
+      # Add jittered points
+      np.random.seed(42)  # For consistent jitter
+      noise = np.random.normal(0, 0.04, size=len(values))
+      ax.scatter(noise + positions[i], values, alpha=0.7, s=40, edgecolor='white', linewidth=0.5)
+    ax.set_ylabel(f'{metric} Value')
+    # Update title based on comparison type
+    if alternative is None:
+      ax.set_title(f'Comparison of {metric} with and without {pattern}')
+    else:
+      ax.set_title(f'Comparison of {metric} between {pattern} and {alternative}')
+    if results["significant"]:
+      p_text = f'p-value: {results["ttest_pvalue"]:.2e}'
+      d_text = f", Cohen's d: {results['effect_size']:.2f}"
+      stat_text = p_text + d_text
+      ax.text(0.5, 0.01, stat_text, 
+              horizontalalignment='center', verticalalignment='bottom', 
+              transform=ax.transAxes, fontsize=12, 
+              bbox=dict(facecolor='lightgray', alpha=0.5))
+    ax.text(0, max(without_pattern_array) * 1.05, 
+            f'Mean: {results["without_pattern_mean"]:.3f}', 
+            horizontalalignment='center')
+    ax.text(1, max(with_pattern_array) * 1.05, 
+            f'Mean: {results["with_pattern_mean"]:.3f}', 
+            horizontalalignment='center')
+    plt.tight_layout()
+    results["plot"] = fig
+  return results
+
+
+def extract_torsion_angles(disaccharide: str, 
+                          structure_graphs: Dict[str, nx.DiGraph] = structure_graphs
+                          ) -> Tuple[List[float], List[float]]:
+  """Extract phi and psi torsion angles for a specific disaccharide linkage across all glycan structures.
+  Args:
+    disaccharide: String representing the disaccharide (e.g., "Fuc(a1-2)Gal")
+    structure_graphs: Dictionary of glycan structure graphs
+  Returns:
+    Tuple of (phi_angles, psi_angles) lists
+  """
+  # Parse the disaccharide pattern
+  parts = disaccharide.split("(")
+  successor_sugar = parts[0]  # e.g., "Fuc"
+  linkage_parts = parts[1].split(")")
+  linkage = linkage_parts[0]  # e.g., "a1-2"
+  predecessor_sugar = linkage_parts[1]  # e.g., "Gal"
+  # Collect torsion angles
+  phi_angles, psi_angles = [], []
+  # Search through all glycan structures
+  for glycan_name, graph in structure_graphs.items():
+    # Find all nodes that match the linkage
+    for node, attrs in graph.nodes(data=True):
+      if attrs.get('string_labels', '') != linkage:
+        continue
+      # Check if this linkage connects the correct sugars
+      successors = list(graph.successors(node))
+      predecessors = list(graph.predecessors(node))
+      if not successors or not predecessors:
+        continue
+      successor_node = successors[0]
+      predecessor_node = predecessors[0]
+      successor_attrs = graph.nodes[successor_node]
+      predecessor_attrs = graph.nodes[predecessor_node]
+      successor_label = successor_attrs.get('string_labels', '')
+      predecessor_label = predecessor_attrs.get('string_labels', '')
+      if successor_sugar in successor_label and predecessor_sugar in predecessor_label:
+        # Found a matching disaccharide linkage, extract angles
+        phi = attrs.get('phi_angle')
+        psi = attrs.get('psi_angle')
+        if phi is not None and psi is not None:
+          phi_angles.append(phi)
+          psi_angles.append(psi)
+  return phi_angles, psi_angles
+
+
+def ramachandran_plot(disaccharide: str, 
+                      structure_graphs: Dict[str, nx.DiGraph] = structure_graphs,
+                      density: bool = True,
+                      filepath: Optional[str] = None) -> plt.Figure:
+  """Generate a Ramachandran plot for a specific disaccharide linkage.
+  Args:
+    disaccharide: String representing the disaccharide (e.g., "Fuc(a1-2)Gal")
+    structure_graphs: Dictionary of glycan structure graphs
+    density: Whether to show density contours (default: True)
+    filepath: Path to save the figure (optional)
+  Returns:
+    Matplotlib figure object
+  """
+  phi_angles, psi_angles = extract_torsion_angles(disaccharide, structure_graphs=structure_graphs)
+  if not phi_angles or not psi_angles:
+    raise ValueError(f"No torsion angles found for disaccharide: {disaccharide}")
+  fig, ax = plt.subplots(figsize=(8, 8))
+  # Create the scatter plot
+  scatter = ax.scatter(phi_angles, psi_angles, alpha=0.7, s=30, c='blue', edgecolor='white')
+  # Add density contours if requested
+  if density and len(phi_angles) > 3:
+    # Calculate the point density
+    xy = np.vstack([phi_angles, psi_angles])
+    z = stats.gaussian_kde(xy)(xy)
+    # Sort the points by density for better visualization
+    idx = z.argsort()
+    x_sorted, y_sorted, z_sorted = np.array(phi_angles)[idx], np.array(psi_angles)[idx], z[idx]
+    # Clear the previous plot and redraw with density coloring
+    ax.clear()
+    scatter = ax.scatter(x_sorted, y_sorted, c=z_sorted, s=30, cmap='viridis', edgecolor='white')
+    contour = ax.tricontour(phi_angles, psi_angles, z, levels=5, linewidths=0.5, colors='k', alpha=0.4)
+    plt.colorbar(scatter, ax=ax, label='Density')
+  # Set plot limits and labels
+  ax.set_xlim(-180, 180)
+  ax.set_ylim(-180, 180)
+  ax.set_xlabel('Phi (°)')
+  ax.set_ylabel('Psi (°)')
+  ax.set_title(f'Ramachandran Plot for {disaccharide}')
+  # Add grid lines
+  ax.grid(alpha=0.3)
+  # Add the origin lines
+  ax.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+  ax.axvline(x=0, color='k', linestyle='--', alpha=0.3)
+  # Add statistics
+  stats_text = (
+    f"n = {len(phi_angles)}\n"
+    f"Mean φ = {np.mean(phi_angles):.1f}° ± {np.std(phi_angles):.1f}°\n"
+    f"Mean ψ = {np.mean(psi_angles):.1f}° ± {np.std(psi_angles):.1f}°"
+  )
+  ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, 
+          verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+  plt.tight_layout()
+  if filepath:
+    plt.savefig(filepath, dpi=300, bbox_inches='tight')
