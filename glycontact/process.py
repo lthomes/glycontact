@@ -5,6 +5,8 @@ import networkx as nx
 import re
 import os
 import copy
+import datetime
+import tempfile
 from collections import Counter, defaultdict
 import subprocess
 import json
@@ -117,6 +119,29 @@ class ComplexDictSerializer(DataFrameSerializer):
 
 
 unilectin_data = ComplexDictSerializer.deserialize_complex_dict(this_dir / "unilectin_data.json")
+
+
+def fetch_pdbs(glycan, stereo=None):
+  """Given a glycan sequence, will query first GlycoShape and then UniLectin for appropriate PDB files.
+  Args:
+  glycan (str): glycan sequence, preferably in IUPAC-condensed
+  stereo (str, optional): specification of whether reducing end alpha or beta is desired
+  Returns:
+  List of Paths for GlycoShape and list of get_annotation output tuples for UniLectin
+  """
+  if stereo is None:
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
+  glycan_path = global_path / glycan
+  if not os.path.exists(glycan_path):
+    if glycan in unilectin_data:
+      matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
+    else:
+      raise FileNotFoundError(f"No directory found for glycan: {glycan}")
+  else:
+    matching_pdbs = [glycan_path / pdb for pdb in os.listdir(glycan_path) if stereo in pdb]
+  if not matching_pdbs:
+    raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
+  return matching_pdbs
 
 
 def get_glycoshape_IUPAC(fresh=False):
@@ -323,7 +348,7 @@ def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_p
   mean_values = np.mean(values_array, axis=0)
   deviations = np.abs(values_array - mean_values)
   if mode == 'weighted':
-    weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
+    weights = np.array(get_all_clusters_frequency(fresh=fresh).get(glycan, [100.0])) / 100
     weights = [1.0]*len(dfs) if len(weights) != len(dfs) else weights
     result = np.average(deviations, weights=weights, axis=0)
   elif mode == 'amplify':
@@ -368,12 +393,12 @@ def inter_structure_frequency_table(glycan, stereo=None, threshold = 5, my_path=
   Returns:
       pd.DataFrame: Table of contact frequencies across structures.
   """
+  if stereo is None and isinstance(glycan, str):
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if isinstance(glycan, str):
     dfs = get_contact_tables(glycan, stereo, my_path=my_path)
   elif isinstance(glycan, list):
     dfs = glycan
-  if stereo is None and isinstance(glycan, str):
-    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   # Apply thresholding and create a new list of transformed DataFrames
   binary_arrays = [df.values < threshold for df in dfs]
   # Sum up the transformed DataFrames to create the final DataFrame
@@ -809,17 +834,7 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if pdb_file is None:
-    glycan_path = global_path / glycan
-    if not os.path.exists(glycan_path):
-      if glycan in unilectin_data:
-        pdb_file = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
-      else:
-        raise FileNotFoundError(f"No directory found for glycan: {glycan}")
-    else:
-      pdb_file = os.listdir(glycan_path)
-      pdb_file = [glycan_path / pdb for pdb in pdb_file if stereo in pdb]
-    if not pdb_file:
-      raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
+    pdb_file = fetch_pdbs(glycan, stereo=stereo)
   if isinstance(pdb_file, str):
     pdb_file = [pdb_file]
   dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold) for pdb in pdb_file])
@@ -839,19 +854,10 @@ def get_example_pdb(glycan, stereo=None, rng=None):
     rng = Random(42)
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  glycan_path = global_path / glycan
-  if not os.path.exists(glycan_path):
-    if glycan in unilectin_data:
-        matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
-        return rng.choice(matching_pdbs)
-    raise FileNotFoundError(f"No directory found for glycan: {glycan}")
-  pdb_file = os.listdir(glycan_path)
-  matching_pdbs = [pdb for pdb in pdb_file if stereo in pdb]
-  if not matching_pdbs:
-    raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
+  matching_pdbs = fetch_pdbs(glycan, stereo=stereo)
   cluster_frequencies = get_all_clusters_frequency().get(glycan, [100.0])
   weights = cluster_frequencies if len(cluster_frequencies) == len(matching_pdbs) else None
-  return glycan_path / rng.choices(matching_pdbs, weights=weights)[0]
+  return rng.choices(matching_pdbs, weights=weights)[0]
 
 
 def monosaccharide_preference_structure(df, monosaccharide, threshold, mode='default'):
@@ -969,8 +975,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if my_path is None:
-    pdb_dir = global_path / glycan
-    pdb_files = sorted(pdb_dir / pdb for pdb in os.listdir(pdb_dir) if stereo in pdb)
+    pdb_files = fetch_pdbs(glycan, stereo=stereo)
   else:
     pdb_files = sorted(str(p) for p in Path(f"{my_path}{glycan}").glob(f"*{stereo}*")) if not is_single_pdb else [my_path]
   df = pd.DataFrame()
@@ -981,7 +986,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
   if len(df) < 1:
     return pd.DataFrame(columns=['Monosaccharide_id', 'Monosaccharide', 'SASA', 'Standard Deviation', 'Coefficient of Variation'])
   if not is_single_pdb:
-    weights = np.array(get_all_clusters_frequency(fresh=fresh)[glycan]) / 100
+    weights = np.array(get_all_clusters_frequency(fresh=fresh).get(glycan, [100.0])) / 100
     weights = np.tile(weights, 2) if len(weights) != len(pdb_files) else weights
     weights = [1.0]*len(pdb_files) if len(weights) != len(pdb_files) else weights
   else:
@@ -989,14 +994,23 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
   residue_modifications = df.set_index('residue_number')['IUPAC'].to_dict()
   # Process each PDB file
   sasa_values = {}
-  for pdb_file in pdb_files:
-    structure = md.load(pdb_file)
+  for p, pdb_file in enumerate(pdb_files):
+    if not isinstance(pdb_file, tuple):
+      structure = md.load(pdb_file)
+    else:  # Create temporary file in a way that doesn't keep the file handle open
+      fd, temp_path = tempfile.mkstemp(suffix='.pdb')
+      try:
+        with os.fdopen(fd, 'w') as tmp:
+          tmp.write(df_to_pdb_content(pdb_file[0]))
+        structure = md.load(temp_path)  # Load the file after closing it
+      finally:
+        os.unlink(temp_path)  # Always clean up the temporary file
     if is_single_pdb:
-        glycan_residues = set(df['residue_number'])
-        atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq in glycan_residues or 
+      glycan_residues = set(df['residue_number'])
+      atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq in glycan_residues or 
                      (atom.residue.name in NON_MONO and atom.residue.resSeq in [r.resSeq for r in structure.topology.residues 
                        if r.resSeq in glycan_residues])]
-        structure = structure.atom_slice(atom_indices)
+      structure = structure.atom_slice(atom_indices)
     sasa = md.shrake_rupley(structure, mode='atom')
     # Group SASA by residue
     mono_sasa, modification_to_parent = {}, {}
@@ -1034,12 +1048,13 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
       if res_seq not in mono_sasa:
         mono_sasa[res_seq] = {'resName': residue_modifications.get(res_seq, res.name), 'sasa': 0}
       mono_sasa[res_seq]['sasa'] += sasa[0][atom.index]  # Add SASA contribution
+    pdb_file = pdb_file if isinstance(pdb_file, str) else str(p)
     sasa_values[pdb_file] = mono_sasa
   # Calculate statistics
-  first_pdb = sasa_values[pdb_files[0]]
+  first_pdb = sasa_values[list(sasa_values.keys())[0]]
   stats = {resSeq: {
     'resName': first_pdb[resSeq]['resName'],
-    'values': [sasa_values[pdb][resSeq]['sasa'] for pdb in pdb_files]
+    'values': [sasa_values[pdb][resSeq]['sasa'] for pdb in sasa_values.keys()]
     } for resSeq in first_pdb}
   # Create DataFrame
   df_data = {
@@ -1143,14 +1158,21 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
     monosaccharides = df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
     flex_df = pd.DataFrame({'Monosaccharide_id': df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
   else:
-    flex = (inter_structure_variability_table(glycan, stereo=stereo, mode=mode, my_path=my_path)).mean()
-    conversion_factor = np.sqrt(np.pi/2)  # converts mean absolute deviation to standard deviation
-    flex_rmsf = {monosac: value * conversion_factor for monosac, value in flex.items()}
-    flex_df = pd.DataFrame(sorted(flex_rmsf.items(), key=lambda x: x[1]), columns=['Monosaccharide_id_Monosaccharide', 'flexibility'])
-    flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
-  if sasa.empty:
-    return flex_df
-  return pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], on='Monosaccharide_id', how='left')
+    pdbs = fetch_pdbs(glycan, stereo=stereo)
+    if not isinstance(pdbs[0], tuple):
+      flex = (inter_structure_variability_table(glycan, stereo=stereo, mode=mode, my_path=my_path)).mean()
+      conversion_factor = np.sqrt(np.pi/2)  # converts mean absolute deviation to standard deviation
+      flex_rmsf = {monosac: value * conversion_factor for monosac, value in flex.items()}
+      flex_df = pd.DataFrame(sorted(flex_rmsf.items(), key=lambda x: x[1]), columns=['Monosaccharide_id_Monosaccharide', 'flexibility'])
+      flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
+    else:
+      ex_df = pdbs[0][0]
+      flexibility = pd.concat([df.groupby('residue_number')['temperature_factor'].mean() for df, inty in pdbs])
+      flexibility = flexibility.groupby(flexibility.index).mean()
+      flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
+      monosaccharides = ex_df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
+      flex_df = pd.DataFrame({'Monosaccharide_id': ex_df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
+  return flex_df if sasa.empty else pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], on='Monosaccharide_id', how='left')
 
 
 def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None) :
@@ -1768,3 +1790,32 @@ def get_ring_conformations(df: pd.DataFrame, exclude_types: List[str] = ['ROH', 
       print(f"Warning: {str(e)}")
       continue
   return pd.DataFrame(results)
+
+
+def df_to_pdb_content(df):
+  """Convert a DataFrame containing PDB-like data to PDB file content.
+  Args:
+    df: DataFrame with columns matching PDB HETATM/ATOM format
+  Returns:
+    String containing PDB-formatted content
+  """
+  pdb_lines = [
+    "HEADER    GLYCAN STRUCTURE                        " + datetime.datetime.now().strftime("%d-%b-%y").upper(),
+    "TITLE     GLYCAN GENERATED FROM DATAFRAME",
+    "REMARK    GENERATED BY DF_TO_PDB_CONTENT FUNCTION"
+  ]
+  record_type = "ATOM"
+  for _, row in df.iterrows():
+    # Format each field according to PDB format
+    line = f"{record_type:<6s}{row.atom_number:>5d}  {row.atom_name:<3s} {row.monosaccharide:<4s}X{row.residue_number:>4d}    "
+    line += f"{row.x:>8.3f}{row.y:>8.3f}{row.z:>8.3f}{row.occupancy:>6.2f}{row.temperature_factor:>6.2f}      SYST {row.element:<2s}"
+    pdb_lines.append(line)
+    last_atom_number = row.atom_number
+    last_residue_name = row.monosaccharide
+    last_residue_number = row.residue_number
+  # Add END record
+  pdb_lines.append(f"TER    {last_atom_number + 1}      {last_residue_name} X   {last_residue_number}")
+  pdb_lines.append("END")
+  # Join lines with newlines
+  pdb_content = "\n".join(pdb_lines)
+  return pdb_content
