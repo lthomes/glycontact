@@ -7,6 +7,14 @@ __pycache__/
 *.gif
 *.png
 
+# But allow them in documentation directories
+!README_files/*.svg
+!README_files/*.gif
+!README_files/*.png
+!images/*.svg
+!images/*.gif
+!images/*.png
+
 # C extensions
 *.so
 

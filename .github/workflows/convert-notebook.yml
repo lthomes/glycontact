@@ -26,12 +26,13 @@ jobs:
           
       - name: Convert notebook to markdown
         run: |
-          jupyter nbconvert --to markdown README.ipynb --output README.md
+          jupyter nbconvert --to markdown README.ipynb --output README.md --output-dir=./ --extract-output
           
-      - name: Commit README.md
+      - name: Commit README.md and images
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
+          git add README_files/
           git diff --quiet && git diff --staged --quiet || git commit -m "Update README.md from notebook"
           git push
