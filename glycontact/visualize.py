@@ -110,11 +110,11 @@ def show_correlation_dendrogram(corr_df, font_size = 1):
   return res_dict
 
 
-def plot_monosaccharide_instability(glycan, format='png', mode='sum'):
+def plot_monosaccharide_instability(glycan, filepath='', mode='sum'):
   """Plots monosaccharide variability across different clusters of a glycan.
   Args:
       glycan (str): IUPAC glycan sequence.
-      format (str, optional): Output file format ('png' or 'pdf'). Defaults to 'png'.
+      filepath (str, optional):  Path prefix for output file. If empty, no file is saved. 
       mode (str, optional): Method for aggregating variability ('sum' or 'mean'). Defaults to 'sum'.
   Returns:
       None: Displays the plot and optionally saves to file.
@@ -129,8 +129,8 @@ def plot_monosaccharide_instability(glycan, format='png', mode='sum'):
   plt.ylabel('Variability score')
   plt.xticks(rotation=90)
   plt.tight_layout()
-  if format in ('png', 'pdf'):
-    plt.savefig(f'{glycan}_instabilities.{format}')
+  if filepath:
+    plt.savefig(f'{filepath}{glycan}_instabilities.pdf', dpi = 300, bbox_inches='tight')
   plt.show()
 
 
