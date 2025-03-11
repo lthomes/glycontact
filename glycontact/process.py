@@ -849,7 +849,9 @@ def get_example_pdb(glycan, stereo=None, rng=None):
   matching_pdbs = [pdb for pdb in pdb_file if stereo in pdb]
   if not matching_pdbs:
     raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
-  return glycan_path / rng.choice(matching_pdbs)
+  cluster_frequencies = get_all_clusters_frequency().get(glycan, [100.0])
+  weights = cluster_frequencies if len(cluster_frequencies) == len(matching_pdbs) else None
+  return glycan_path / rng.choices(matching_pdbs, weights=weights)[0]
 
 
 def monosaccharide_preference_structure(df, monosaccharide, threshold, mode='default'):
@@ -1550,7 +1552,7 @@ def calculate_torsion_angle(coords: List[List[float]]) -> float:
 
 
 def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[str]]) -> pd.DataFrame:
-  """Calculate phi/psi torsion angles for all glycosidic linkages in structure.
+  """Calculate phi/psi/omega torsion angles for all glycosidic linkages in structure.
   Args:
     df (pd.DataFrame): DataFrame with PDB atomic coordinates
     interaction_dict (dict): Dictionary of glycosidic linkages
@@ -1590,10 +1592,24 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
     has_c6 = not acceptor[acceptor['atom_name'] == 'C6'].empty
     next_c = pos + 1 if (pos < 6 and has_c6) or (pos < 5 and not has_c6) else 1
     coords_psi = [coords_phi[1], coords_phi[2], coords_phi[3], acceptor[acceptor['atom_name'] == f'C{next_c}'].iloc[0][['x', 'y', 'z']].values.astype(float)]
+    # Calculate omega angle for 1/2-6 linkages
+    if pos == 6:
+      try:
+        coords_omega = [
+            coords_phi[2],  # O6
+            coords_phi[3],  # C6
+            acceptor[acceptor['atom_name'] == 'C5'].iloc[0][['x', 'y', 'z']].values.astype(float),
+            acceptor[acceptor['atom_name'] == 'O5'].iloc[0][['x', 'y', 'z']].values.astype(float)
+            ]
+      except (IndexError, KeyError):
+        coords_omega = []
+    else:
+      coords_omega = []
     results.append({
         'linkage': f"{donor_key}-{acceptor_id}",
         'phi': round(calculate_torsion_angle(coords_phi), 2),
         'psi': round(calculate_torsion_angle(coords_psi), 2),
+        'omega': round(calculate_torsion_angle(coords_omega), 2) if coords_omega else None,
         'anomeric_form': aform,
         'position': pos
         })
