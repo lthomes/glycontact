@@ -19,6 +19,7 @@ from tqdm import tqdm
 from pathlib import Path
 from urllib.parse import quote
 from typing import Tuple, Dict, List
+from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
 from multiprocessing import Pool
@@ -1402,63 +1403,91 @@ def extract_glycan_coords(pdb_filepath, residue_ids=None, main_chain_only=False)
     df = df[df['residue_number'].isin(residue_ids)]
   # Get common atoms present in most glycans
   if main_chain_only:
-    common_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
+    common_atoms = {'C1', 'C2', 'C3', 'C4', 'C5', 'O5'}
     df = df[df['atom_name'].isin(common_atoms)]
   else:
     df = df[~df['atom_name'].str.startswith('H')]
-  coords, atom_labels = [], []
-  for _, row in df.iterrows():
-    coords.append([row['x'], row['y'], row['z']])
-    atom_labels.append(f"{row['residue_number']}_{row['monosaccharide']}_{row['atom_name']}")
-  return np.array(coords), atom_labels
+  coords = df[['x', 'y', 'z']].to_numpy()
+  residue_numbers = df['residue_number'].values
+  monosaccharides = df['monosaccharide'].values
+  atom_names = df['atom_name'].values
+  atom_labels = [f"{r}_{m}_{a}" for r, m, a in zip(residue_numbers, monosaccharides, atom_names)]
+  return coords, atom_labels
 
 
-def align_point_sets(mobile_coords, ref_coords):
-  """Find optimal rigid transformation to align two point sets.
+def align_point_sets(mobile_coords, ref_coords, fast=False):
+  """Find optimal rigid transformation to align two point sets using SVD-based Kabsch algorithm or Nelder-Mead optimization.
   Args:
     mobile_coords (np.ndarray): Nx3 array of coordinates to transform
     ref_coords (np.ndarray): Mx3 array of reference coordinates
+    fast (bool): Whether to use SVD-based Kabsch algorithm with k-d trees or Nelder-Mead optimization. Defaults to the latter
   Returns:
     Tuple of (transformed coordinates, RMSD)
   """
-  def get_rotation_matrix(angles):
-    """Create 3D rotation matrix from angles."""
-    cx, cy, cz = np.cos(angles)
-    sx, sy, sz = np.sin(angles)
-    Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
-    Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
-    Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
-    return Rx @ Ry @ Rz
-
-  def objective(params):
-    """Objective function to minimize."""
-    angles = params[:3]
-    translation = params[3:]
+  if fast:  # SVD-based Kabsch algorithm with k-d trees
+    # Center the coordinates
+    mobile_centroid = np.mean(mobile_coords, axis=0)
+    ref_centroid = np.mean(ref_coords, axis=0)
+    mobile_centered = mobile_coords - mobile_centroid
+    ref_centered = ref_coords - ref_centroid
+    # Find closest atoms (correspondence) between sets
+    tree = cKDTree(ref_centered)
+    _, indices = tree.query(mobile_centered)
+    matched_ref = ref_centered[indices]
+    # Compute covariance matrix
+    covariance = mobile_centered.T @ matched_ref
+    # Compute optimal rotation using SVD
+    u, _, vt = np.linalg.svd(covariance)
+    # Handle reflection case
+    d = np.linalg.det(vt.T @ u.T)
+    correction = np.eye(3)
+    correction[2, 2] = d
+    rotation = vt.T @ correction @ u.T
     # Apply rotation and translation
-    R = get_rotation_matrix(angles)
-    transformed = (mobile_coords @ R) + translation
-    # Calculate distances between all points
-    distances = cdist(transformed, ref_coords)
-    # Use sum of minimum distances as score
-    return np.min(distances, axis=1).sum()
+    transformed_coords = (mobile_coords - mobile_centroid) @ rotation + ref_centroid
+    # Calculate final RMSD
+    squared_diffs = np.sum((transformed_coords - ref_coords[indices])**2, axis=1)
+    rmsd = np.sqrt(np.mean(squared_diffs))
+  else:  # Nelder-Mead simplex optimization
+    def get_rotation_matrix(angles):
+      """Create 3D rotation matrix from angles."""
+      cx, cy, cz = np.cos(angles)
+      sx, sy, sz = np.sin(angles)
+      Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
+      Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
+      Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
+      return Rx @ Ry @ Rz
 
-  # Initial guess
-  initial_guess = np.zeros(6)  # 3 rotation angles + 3 translation components
-  # Optimize alignment
-  result = minimize(objective, initial_guess, method='Nelder-Mead')
-  # Get final transformation
-  final_angles = result.x[:3]
-  final_translation = result.x[3:]
-  R = get_rotation_matrix(final_angles)
-  transformed_coords = (mobile_coords @ R) + final_translation
-  # Calculate final RMSD
-  distances = cdist(transformed_coords, ref_coords)
-  min_distances = np.min(distances, axis=1)
-  rmsd = np.sqrt(np.mean(min_distances ** 2))
+    def objective(params):
+      """Objective function to minimize."""
+      angles = params[:3]
+      translation = params[3:]
+      # Apply rotation and translation
+      R = get_rotation_matrix(angles)
+      transformed = (mobile_coords @ R) + translation
+      # Calculate distances between all points
+      distances = cdist(transformed, ref_coords)
+      # Use sum of minimum distances as score
+      return np.min(distances, axis=1).sum()
+
+    # Initial guess
+    initial_guess = np.zeros(6)  # 3 rotation angles + 3 translation components
+    # Optimize alignment
+    result = minimize(objective, initial_guess, method='Nelder-Mead')
+    # Get final transformation
+    final_angles = result.x[:3]
+    final_translation = result.x[3:]
+    R = get_rotation_matrix(final_angles)
+    transformed_coords = (mobile_coords @ R) + final_translation
+    # Calculate final RMSD
+    distances = cdist(transformed_coords, ref_coords)
+    min_distances = np.min(distances, axis=1)
+    rmsd = np.sqrt(np.mean(min_distances ** 2))
   return transformed_coords, rmsd
 
 
-def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_residues=None, main_chain_only=False):
+def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_residues=None, main_chain_only=False,
+                        fast=False):
   """Superimpose two glycan structures and calculate RMSD.
   Args:
     ref_glycan (str): Reference glycan or PDB path.
@@ -1466,6 +1495,7 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
     ref_residues (list, optional): Residue numbers for reference glycan.
     mobile_residues (list, optional): Residue numbers for mobile glycan.
     main_chain_only (bool): If True, uses only main chain atoms.
+    fast (bool): Whether to use SVD-based Kabsch algorithm with k-d trees or Nelder-Mead optimization. Defaults to the latter
   Returns:
     Dict containing:
         - ref_coords: Original coordinates of reference
@@ -1483,13 +1513,14 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
     ref_conformers = [ref_glycan]
     mobile_conformers = [mobile_glycan]
   best_rmsd = float('inf')
-  best_result = None
+  best_result = {'rmsd': best_rmsd}
+  mobile_coord_cache = {mobile_pdb: extract_glycan_coords(mobile_pdb, mobile_residues, main_chain_only) for mobile_pdb in mobile_conformers}
   # Iterate over all possible pairs of conformers
   for ref_pdb in ref_conformers:  # Extract coordinates for reference conformer
     ref_coords, ref_labels = extract_glycan_coords(ref_pdb, ref_residues, main_chain_only)
     for mobile_pdb in mobile_conformers:  # Extract coordinates for mobile conformer
-      mobile_coords, mobile_labels = extract_glycan_coords(mobile_pdb, mobile_residues, main_chain_only)
-      transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords)
+      mobile_coords, mobile_labels = mobile_coord_cache[mobile_pdb]
+      transformed_coords, rmsd = align_point_sets(mobile_coords, ref_coords, fast=fast)
       if rmsd < best_rmsd:
         best_rmsd = rmsd
         best_result = {
@@ -1505,7 +1536,7 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
 
 
 def _process_single_glycan(args):
-  glycan, query_coords, rmsd_cutoff = args
+  glycan, query_coords, rmsd_cutoff, fast = args
   best_rmsd = float('inf')
   best_structure = None
   pdb_files = list((global_path / glycan).glob('*.pdb'))
@@ -1513,7 +1544,7 @@ def _process_single_glycan(args):
     try:
       coords, _ = extract_glycan_coords(pdb_file)
       if abs(len(coords) - len(query_coords)) <= 5:
-        transformed, rmsd = align_point_sets(coords, query_coords)
+        transformed, rmsd = align_point_sets(coords, query_coords, fast=fast)
         if rmsd < best_rmsd:
           best_rmsd = rmsd
           best_structure = pdb_file
@@ -1522,7 +1553,8 @@ def _process_single_glycan(args):
   return glycan, best_rmsd, best_structure
 
 
-def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_cutoff=2.0):
+def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_cutoff=2.0,
+                        fast=False):
   """Search for structurally similar glycans by comparing against all available
   conformers/structures and keeping the best match for each glycan.
   Args:
@@ -1530,6 +1562,7 @@ def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_
     pdb_path (str, optional): Optional specific path to query PDB file
     glycan_database (list, optional): List of candidate glycan structures
     rmsd_cutoff (float): Maximum RMSD to consider as similar
+    fast (bool): Whether to use SVD-based Kabsch algorithm with k-d trees or Nelder-Mead optimization. Defaults to the latter
   Returns:
     List of (glycan_id, rmsd, best_structure) tuples sorted by similarity
   """
@@ -1540,7 +1573,7 @@ def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_
   query_glycan = get_example_pdb(query_glycan) if pdb_path is None else pdb_path
   query_coords, _ = extract_glycan_coords(query_glycan)
   # Prepare args for parallel processing
-  process_args = [(g, query_coords, rmsd_cutoff) for g in glycans]
+  process_args = [(g, query_coords, rmsd_cutoff, fast) for g in glycans]
   results = []
   with Pool() as pool:
     for glycan, rmsd, best_structure in tqdm(pool.imap_unordered(_process_single_glycan, process_args),
