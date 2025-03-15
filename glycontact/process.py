@@ -664,16 +664,18 @@ def correct_dataframe(df):
   Returns:
       pd.DataFrame: Corrected dataframe with fixed monosaccharide assignments.
   """
-  c_counts = df[df['element'] == 'C'].groupby(['chain_id', 'residue_number']).size()
+  use_chain = len(df['chain_id'].unique()) > 1
+  group_cols = ['chain_id', 'residue_number'] if use_chain else ['residue_number']
+  c_counts = df[df['element'] == 'C'].groupby(group_cols).size()
   high_carbon_residues = c_counts[c_counts >= 7].index
-  # Create masks for GLC and BGC replacements
-  glc_mask = df.apply(lambda row: (row['monosaccharide'] == 'GLC') and 
-                     (row['chain_id'], row['residue_number']) in high_carbon_residues, axis=1)
-  bgc_mask = df.apply(lambda row: (row['monosaccharide'] == 'BGC') and 
-                     (row['chain_id'], row['residue_number']) in high_carbon_residues, axis=1)
+  # Function to check if a residue is in high carbon list
+  def is_high_carbon(row):
+    if use_chain:
+      return (row['chain_id'], row['residue_number']) in high_carbon_residues
+    return row['residue_number'] in high_carbon_residues
   # Apply replacements
-  df.loc[glc_mask, 'monosaccharide'] = 'NGA'
-  df.loc[bgc_mask, 'monosaccharide'] = 'A2G'
+  df.loc[(df['monosaccharide'] == 'GLC') & df.apply(is_high_carbon, axis=1), 'monosaccharide'] = 'NGA'
+  df.loc[(df['monosaccharide'] == 'BGC') & df.apply(is_high_carbon, axis=1), 'monosaccharide'] = 'A2G'
   return df
 
 
@@ -794,7 +796,8 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           df.loc[mask, 'residue_number'] = int(new_residue)
     df = df.sort_values('residue_number')
   # Extract and validate linkages
-  valid_fragments = {x.split(')')[0] + ')' for x in get_k_saccharides([glycan], just_motifs=True)[0]} | ({min_process_glycans([glycan])[0][-1]} if is_protein_complex else set())
+  disaccharides = [di for di in get_k_saccharides([glycan], just_motifs=True)[0] if '?' not in di] if '(' in glycan else []
+  valid_fragments = {f"{x.split(')')[0]})" for x in disaccharides} | ({min_process_glycans([glycan])[0][-1]} if is_protein_complex else set())
   res = extract_binary_interactions_from_PDB(df)
   # Handle case where extract_binary_interactions_from_PDB returns a list of DataFrames (multiple chains)
   if isinstance(res, list):
@@ -836,7 +839,7 @@ def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if pdb_file is None:
     pdb_file = fetch_pdbs(glycan, stereo=stereo)
-  if isinstance(pdb_file, str):
+  if not isinstance(pdb_file, list):
     pdb_file = [pdb_file]
   dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold) for pdb in pdb_file])
   return dfs, int_dicts
@@ -972,7 +975,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
   Returns:
       pd.DataFrame: Table with SASA values and statistics for each monosaccharide.
   """
-  is_single_pdb = my_path is not None and "." in my_path
+  is_single_pdb = my_path is not None and isinstance(my_path, str) and "." in my_path
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if my_path is None:
@@ -1152,7 +1155,7 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
-  if my_path is not None and "." in my_path:
+  if my_path is not None and isinstance(my_path, str) and "." in my_path:
     df, _ = get_annotation(glycan, my_path)
     flexibility = df.groupby('residue_number')['temperature_factor'].mean()
     flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
@@ -1348,21 +1351,22 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr
   return glycowork_graph
 
 
-def get_structure_graph(glycan, stereo=None, libr=None, my_path=None):
+def get_structure_graph(glycan, stereo=None, libr=None, example_path=None, sasa_flex_path=None):
   """Creates a complete annotated structure graph for a glycan.
   Args:
       glycan (str): IUPAC glycan sequence.
       stereo (str, optional): 'alpha' or 'beta' stereochemistry.
       libr (dict, optional): Custom library for glycan_to_nxGraph.
-      my_path (str, optional): Path to a specific PDB.
+      example_path (str, optional): Path to a specific PDB, used for torsion angles and conformations.
+      sasa_flex_path (str, optional): Path to a specific PDB, used for SASA/flexibility.
   Returns:
       nx.Graph: Fully annotated structure graph with all available properties.
   """
   glycan = canonicalize_iupac(glycan)
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  merged = compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=stereo, my_path=my_path)
-  example = my_path if my_path is not None else get_example_pdb(glycan, stereo=stereo)
+  merged = compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=stereo, my_path=sasa_flex_path)
+  example = example_path if example_path is not None else get_example_pdb(glycan, stereo=stereo)
   res, datadict = get_annotation(glycan, example, threshold=3.5)
   ring_conf = get_ring_conformations(res)
   torsion_angles = get_glycosidic_torsions(res, datadict)
