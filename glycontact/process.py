@@ -1083,6 +1083,7 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
       std = np.std(values)
       df_data['Standard Deviation'].append(std)
       df_data['Coefficient of Variation'].append(std / mean if mean != 0 else 0)
+  df_data['SASA'] = [val * 100 for val in df_data['SASA']]  # Convert from nm² to Å²
   return pd.DataFrame(df_data)
 
 
