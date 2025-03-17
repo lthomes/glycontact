@@ -1323,7 +1323,7 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr
   Returns:
       nx.Graph: Annotated glycowork graph with combined information.
   """
-  glycowork_graph = glycan_to_nxGraph(glycan, libr=libr)
+  glycowork_graph = glycan_to_nxGraph(glycan, libr=libr).copy()
   original_labels = {node: data.get('labels', None) for node, data in glycowork_graph.nodes(data=True)}
   node_attributes = {node: g_contact.nodes[node] for node in g_contact.nodes}
   # Map attributes to the glycowork graph nodes
