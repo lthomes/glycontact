@@ -1212,6 +1212,7 @@ def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_
       torsion_map[edge_key] = {
             'phi_angle': row['phi'],
             'psi_angle': row['psi'],
+            'omega_angle': row['omega']
             }
   # Add node attributes
   for _, row in computed_df.iterrows():
@@ -1347,7 +1348,8 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr
     linkage_node = min(u_mapped, v_mapped) + 1
     glycowork_graph.nodes[linkage_node].update({
         'phi_angle': g_contact[u][v]['phi_angle'],
-        'psi_angle': g_contact[u][v]['psi_angle']
+        'psi_angle': g_contact[u][v]['psi_angle'],
+        'omega_angle': g_contact[u][v]['omega_angle']
         })
   return glycowork_graph
 
