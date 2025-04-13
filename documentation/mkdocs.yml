@@ -1,0 +1,35 @@
+site_name: GlyContact documentation
+site_url: https://lthomes.github.io/glycontact/
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: teal
+    accent: indigo
+
+nav:
+  - GlyContact: index.md
+  - Installation: installation.md
+  - Examples: examples.md
+  - References: references.md
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - codehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.arithmatex
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.emoji
+  - pymdownx.tasklist
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/lthomes/glycontact
+
