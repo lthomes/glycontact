@@ -277,8 +277,9 @@ class VonMisesSweetNet(torch.nn.Module):
         )
 
         values = self.head_values(x)
-        sasa_pred = values[:, 0]
-        flex_pred = values[:, 1]
+        # The multiplication with 2 is necessary because the last batch-norm (introduced for learning stability) seems to set off the predictions by factor 2
+        sasa_pred = values[:, 0] * 2
+        flex_pred = values[:, 1] * 2
         return weights_logits_von_mises, means_von_mises, kappas_von_mises, sasa_pred, flex_pred
 
     
@@ -365,8 +366,8 @@ def train_model(
                     y = y.to("cuda")
                     mono_mask = y[:, 2] != 0  # Do based on SASA
                     von_mises_phi_loss, von_mises_psi_loss = mixture_von_mises_nll(y[~mono_mask, :2], weights_logits_von_mises[~mono_mask], mus_von_mises[~mono_mask], kappas_von_mises[~mono_mask])
-                    sasa_loss = torch.nn.functional.mse_loss(sasa_pred[mono_mask], y[mono_mask, 2]) ** (1/2)
-                    flex_loss = torch.nn.functional.mse_loss(flex_pred[mono_mask], y[mono_mask, 3]) ** (1/2)
+                    sasa_loss = torch.sqrt(torch.nn.functional.mse_loss(sasa_pred[mono_mask], y[mono_mask, 2]))  #  ** (1/2)
+                    flex_loss = torch.sqrt(torch.nn.functional.mse_loss(flex_pred[mono_mask], y[mono_mask, 3]))  #  ** (1/2)
                     loss = von_mises_phi_loss + von_mises_psi_loss + sasa_loss / 60 + flex_loss
                     if phase == "train":
                         loss.backward()
