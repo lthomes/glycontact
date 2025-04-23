@@ -1,7 +1,9 @@
+from collections import defaultdict
 import os
 import copy
 import time
 from pathlib import Path
+from typing import Literal
 
 import torch
 import numpy as np
@@ -31,6 +33,126 @@ def get_all_structure_graphs(glycan, stereo=None, libr=None):
     glycan_path = Path("glycans_pdb") / glycan
     matching_pdbs = [glycan_path / pdb for pdb in sorted(os.listdir(glycan_path)) if stereo in pdb]
     return [(pdb, get_structure_graph(glycan, libr=libr, example_path=pdb)) for pdb in matching_pdbs]
+
+
+def build_baselines(data, fn):
+    sasa, flex, phi, psi = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+    for g in data:
+        for n in g.nodes:
+            if "SASA" in g.nodes[n]:
+                name = g.nodes[n]["string_labels"]
+                sasa[name].append(g.nodes[n]["SASA"])
+                flex[name].append(g.nodes[n]["flexibility"])
+            elif "phi_angle" in g.nodes[n]:
+                name = (
+                    g.nodes[list(g.predecessors(n))[0]]["string_labels"], 
+                    g.nodes[list(g.successors(n))[0]]["string_labels"]
+                )
+                phi[name].append(g.nodes[n]["phi_angle"])
+                psi[name].append(g.nodes[n]["psi_angle"])
+    for pred in [sasa, flex, phi, psi]:
+        default = []
+        for k, v in pred.items():
+            default += v
+            pred[k] = fn(v)
+        pred["default"] = fn(default)
+    return lambda x: phi.get(x, phi["default"]), \
+        lambda x: psi.get(x, psi["default"]), \
+        lambda x: sasa.get(x, sasa["default"]), \
+        lambda x: flex.get(x, flex["default"])
+
+
+def sample_angle(weights, mus, kappas):
+    idx = np.random.choice(len(weights), p=weights)
+    mu = (mus[idx] * np.pi / 180.0) % (2 * np.pi)
+    if mu > np.pi:
+        mu -= 2 * np.pi
+    angle_sample = torch.distributions.von_mises.VonMises(mu, kappas[idx] + 1e-10).sample()
+    angle_sample = angle_sample * 180.0 / np.pi
+    return angle_sample
+
+
+def sample_from_model(model, structures, count=10):
+    """
+    Sample from the model using the provided structures
+    Args:
+        model: The trained model
+        structures: List of structure graphs
+    Returns:
+        List of sampled angles
+    """
+    model.eval()
+    sampled_structures = []
+    if isinstance(model, GINSweetNet):
+        count = 1
+    with torch.no_grad():
+        for i, (data, graph) in enumerate(structures):
+            print(f"\r{i + 1} / {len(structures)}", end="")
+            for _ in range(count):
+                angular_pred, sasa_pred, flex_pred = model(data.x.to("cuda"), data.edge_index.to("cuda"))
+
+                G = copy.deepcopy(graph)
+                for n, node in enumerate(G.nodes):
+                    if "phi_angle" in G.nodes[node]:
+                        if isinstance(model, GINSweetNet):
+                            phi_pred, psi_pred = angular_pred
+                            G.nodes[node]["phi_angle"] = phi_pred[n].item()
+                            G.nodes[node]["psi_angle"] = psi_pred[n].item()
+                        else:
+                            weights_logits_von_mises, mus_von_mises, kappas_von_mises = angular_pred
+                            weights_von_mises = torch.nn.functional.softmax(weights_logits_von_mises, dim=2).cpu().numpy()
+                            G.nodes[node]["phi_angle"] = sample_angle(weights_von_mises[n, 0], mus_von_mises[n, 0], kappas_von_mises[n, 0]).item()
+                            G.nodes[node]["psi_angle"] = sample_angle(weights_von_mises[n, 1], mus_von_mises[n, 1], kappas_von_mises[n, 1]).item()
+                    elif "SASA" in G.nodes[node]:
+                        G.nodes[node]["SASA"] = sasa_pred[n].item()
+                        G.nodes[node]["flexibility"] = flex_pred[n].item()
+                sampled_structures.append(G)
+    print()
+    return sampled_structures
+
+
+def eval_baseline(nxgraphs, phi_pred, psi_pred, sasa_pred, flex_pred):
+    predicted_structures = []
+    for graph in nxgraphs:
+        pred = copy.deepcopy(graph)
+        for node in graph.nodes:
+            if "phi_angle" in graph.nodes[node]:
+                name = (
+                    graph.nodes[list(graph.predecessors(node))[0]]["string_labels"], 
+                    graph.nodes[list(graph.successors(node))[0]]["string_labels"]
+                )
+                pred.nodes[node]["phi_angle"] = phi_pred(name)
+                pred.nodes[node]["psi_angle"] = psi_pred(name)
+            if "SASA" in graph.nodes[node]:
+                name = graph.nodes[node]["string_labels"]
+                pred.nodes[node]["SASA"] = sasa_pred(name)
+                pred.nodes[node]["flexibility"] = flex_pred(name)
+        predicted_structures.append(pred)
+    return predicted_structures
+
+
+def value_rmse(predicted_graphs, true_graphs, name: str):
+    count = len(predicted_graphs) / len(true_graphs)
+    preds, labels = [], []
+    for i, true_g in enumerate(true_graphs):
+        pred_g = predicted_graphs[int(i * count)]
+        for node in pred_g.nodes:
+            if name in pred_g.nodes[node]:
+                preds.append(pred_g.nodes[node][name])
+                labels.append(true_g.nodes[node][name])
+    return np.sqrt(np.mean((np.array(preds) - np.array(labels)) ** 2))
+
+
+def evaluate_model(model, structures, count: int = 10, sampling: bool = False):
+    if isinstance(model, torch.nn.Module):
+        predictions = sample_from_model(model, structures, count)
+    else:
+        predictions = eval_baseline([s[1] for s in structures], model[0], model[1], model[2], model[3])
+    
+    sasa_rmse = value_rmse(predictions, [s[1] for s in structures], "SASA")
+    flex_rmse = value_rmse(predictions, [s[1] for s in structures], "flexibility")
+
+    return 0, 0, sasa_rmse, flex_rmse, predictions
 
 
 def node2y(attr):
@@ -150,6 +272,129 @@ def create_dataset(fresh: bool = True):
     return train, test
 
 
+def mean_conformer(conformers):
+    G = copy.deepcopy(conformers[0][1][1])
+    weights, graphs = zip(*conformers)
+    for i, (weight, (_, nxg)) in enumerate(zip(weights, graphs)):
+        for node in nxg.nodes:
+            if "phi_angle" in nxg.nodes[node]:
+                if i == 0:
+                    G.nodes[node]["phi_angle"] = (weight * nxg.nodes[node]["phi_angle"])
+                    G.nodes[node]["psi_angle"] = (weight * nxg.nodes[node]["psi_angle"])
+                else:
+                    G.nodes[node]["phi_angle"] += weight * nxg.nodes[node]["phi_angle"]
+                    G.nodes[node]["psi_angle"] += weight * nxg.nodes[node]["psi_angle"]
+            elif "SASA" in nxg.nodes[node]:
+                if i == 0:
+                    G.nodes[node]["SASA"] = (weight * nxg.nodes[node]["SASA"])
+                    G.nodes[node]["flexibility"] = (weight * nxg.nodes[node]["flexibility"])
+                else:
+                    G.nodes[node]["SASA"] += weight * nxg.nodes[node]["SASA"]
+                    G.nodes[node]["flexibility"] += weight * nxg.nodes[node]["flexibility"]
+    for node in G.nodes:
+        if "phi_angle" in G.nodes[node]:
+            G.nodes[node]["phi_angle"] /= sum(weights)
+            G.nodes[node]["psi_angle"] /= sum(weights)
+        elif "SASA" in G.nodes[node]:
+            G.nodes[node]["SASA"] /= sum(weights)
+            G.nodes[node]["flexibility"] /= sum(weights)
+    return graph2pyg(G, 1, conformers[0][1][0].iupac, conformers[0][1][0].iupac + "_mean"), G
+
+
+def clean_split(split, mode: Literal["mean", "max"] = "max"):
+    data = defaultdict(list)
+    for pyg, nxg in split:
+        data[pyg.iupac].append((int(pyg.weight.item()), (pyg, nxg)))
+    if mode == "max":
+        return [max(d, key=lambda x: x[0])[1] for d in data.values()]
+    return [mean_conformer(d) for d in data.values()]
+
+
+class GINSweetNet(torch.nn.Module):
+    def __init__(
+            self, 
+            lib_size: int, # number of unique tokens for graph nodes
+            num_classes: int = 1, # number of output classes (>1 for multilabel)
+            hidden_dim: int = 128, # dimension of hidden layers
+            num_components: int = 5 # number of components in the mixture models
+        ) -> None:
+        "given glycan graphs as input, predicts properties via a graph neural network"
+        super(GINSweetNet, self).__init__()
+        # Node embedding
+        self.item_embedding = torch.nn.Embedding(num_embeddings=lib_size+1, embedding_dim=hidden_dim)
+
+        # Output layers for mixture model parameters
+        self.num_components = num_components
+        self.num_classes = num_classes  # Currently ignored
+
+        # Convolution operations on the graph (Backbone)
+        self.body = torch.nn.Sequential(
+            GINConv(torch.nn.Sequential(
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.ReLU(),
+                torch.nn.BatchNorm1d(hidden_dim),
+                torch.nn.Dropout(p=0.3),
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.BatchNorm1d(hidden_dim),
+            )),
+            GINConv(torch.nn.Sequential(
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.ReLU(),
+                torch.nn.BatchNorm1d(hidden_dim),
+                torch.nn.Dropout(p=0.3),
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.BatchNorm1d(hidden_dim),
+            )),
+            GINConv(torch.nn.Sequential(
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.ReLU(),
+                torch.nn.BatchNorm1d(hidden_dim),
+                torch.nn.Dropout(p=0.3),
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.BatchNorm1d(hidden_dim),
+            )),
+        )
+
+        self.head = torch.nn.Sequential(
+            torch.nn.Linear(hidden_dim, hidden_dim // 2),
+            torch.nn.BatchNorm1d(hidden_dim // 2),
+            torch.nn.Dropout(p=0.3),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim // 2, hidden_dim // 4),
+            torch.nn.BatchNorm1d(hidden_dim // 4),
+            torch.nn.Dropout(p=0.3),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim // 4, self.num_classes),
+        )
+
+    def forward(self, x, edge_index):
+        """
+        Forward pass through the model.
+        
+        Args:
+            x: Input node features [batch_size, num_nodes, hidden_dim]
+            edge_index: Edge indices for the graph [2, num_edges]
+        
+        Returns:
+            Tuple of 
+            weights_logits: Logits for mixture weights [batch_size, 2, num_components]
+            means: Mean angles in degrees [batch_size, 2, num_components]
+            kappas: Concentration parameters [batch_size, 2, num_components]
+            sasa_pred: Predicted SASA values [batch_size]
+            flex_pred: Predicted flexibility values [batch_size]
+        """
+        x = self.item_embedding(x)
+        for layer in self.body:
+            x = layer(x, edge_index)
+        x = self.head(x)
+        
+        phi_pred = x[:, 0]
+        psi_pred = x[:, 1]
+        sasa_pred = x[:, 2]
+        flex_pred = x[:, 3]
+        return (phi_pred, psi_pred), sasa_pred, flex_pred
+
+
 class VonMisesSweetNet(torch.nn.Module):
     def __init__(
             self, 
@@ -217,7 +462,6 @@ class VonMisesSweetNet(torch.nn.Module):
             torch.nn.Dropout(p=0.3),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim // 4, 2),
-            torch.nn.BatchNorm1d(2),
         )
     
     def predict_von_mises_parameters(self, x, head, fc_weights, fc_means, fc_kappas):
@@ -277,10 +521,9 @@ class VonMisesSweetNet(torch.nn.Module):
         )
 
         values = self.head_values(x)
-        # The multiplication with 2 is necessary because the last batch-norm (introduced for learning stability) seems to set off the predictions by factor 2
-        sasa_pred = values[:, 0] * 2
-        flex_pred = values[:, 1] * 2
-        return weights_logits_von_mises, means_von_mises, kappas_von_mises, sasa_pred, flex_pred
+        sasa_pred = values[:, 0]
+        flex_pred = values[:, 1]
+        return (weights_logits_von_mises, means_von_mises, kappas_von_mises), sasa_pred, flex_pred
 
     
 def mixture_von_mises_nll(angles, weights_logits, mus, kappas):
@@ -328,16 +571,42 @@ def mixture_von_mises_nll(angles, weights_logits, mus, kappas):
     return -torch.mean(total_log_probs[0]), -torch.mean(total_log_probs[1])
 
 
+def periodic_mse(pred, target):
+    # Convert angles to radians for easier calculation
+    pred_rad = pred * (np.pi / 180.0)
+    target_rad = target * (np.pi / 180.0)
+    
+    # Calculate the difference using sine and cosine to handle periodicity
+    diff_sin = torch.sin(pred_rad) - torch.sin(target_rad)
+    diff_cos = torch.cos(pred_rad) - torch.cos(target_rad)
+    
+    # Calculate the squared differences
+    squared_diff = diff_sin**2 + diff_cos**2
+    
+    # Calculate separate losses for phi and psi angles
+    phi_loss = squared_diff[:, 0].mean()
+    psi_loss = squared_diff[:, 1].mean()
+    return phi_loss, psi_loss
+
+
+def periodic_rmse(pred, target):
+    phi_mse, psi_mse = periodic_mse(pred, target)
+    phi_rmse = torch.sqrt(phi_mse)
+    psi_rmse = torch.sqrt(psi_mse)
+    return phi_rmse, psi_rmse
+
+
 def train_model(
     model: torch.nn.Module, # graph neural network for analyzing glycans
     dataloaders: dict[str, torch.utils.data.DataLoader], # dict with 'train' and 'val' loaders
     optimizer: torch.optim.Optimizer, # PyTorch optimizer, has to be SAM if mode != "regression"
-    scheduler: torch.optim.lr_scheduler._LRScheduler, # PyTorch learning rate decay
+    scheduler: torch.optim.lr_scheduler._LRScheduler | None, # PyTorch learning rate decay
     num_epochs: int = 25, # number of epochs for training
 ):
     blank_metrics = {k: [] for k in {"loss", "phi_loss", "psi_loss", "sasa_loss", "flex_loss"}}
     metrics = {"train": copy.deepcopy(blank_metrics), "val": copy.deepcopy(blank_metrics)}
     best_loss = float("inf")
+    best_model = None
 
     since = time.time()
     for epoch in range(num_epochs):
@@ -361,22 +630,26 @@ def train_model(
 
                 with torch.set_grad_enabled(phase == 'train'):
                     # First forward pass
-                    # weights_logits_von_mises, mus_von_mises, kappas_von_mises, weights_logits_gaussian, mus_gaussian, sigmas_gaussian = model(x.to("cuda"), edge_index.to("cuda"))
-                    weights_logits_von_mises, mus_von_mises, kappas_von_mises, sasa_pred, flex_pred = model(x.to("cuda"), edge_index.to("cuda"))
+                    angular_pred, sasa_pred, flex_pred = model(x.to("cuda"), edge_index.to("cuda"))
                     y = y.to("cuda")
                     mono_mask = y[:, 2] != 0  # Do based on SASA
-                    von_mises_phi_loss, von_mises_psi_loss = mixture_von_mises_nll(y[~mono_mask, :2], weights_logits_von_mises[~mono_mask], mus_von_mises[~mono_mask], kappas_von_mises[~mono_mask])
-                    sasa_loss = torch.sqrt(torch.nn.functional.mse_loss(sasa_pred[mono_mask], y[mono_mask, 2]))  #  ** (1/2)
-                    flex_loss = torch.sqrt(torch.nn.functional.mse_loss(flex_pred[mono_mask], y[mono_mask, 3]))  #  ** (1/2)
-                    loss = von_mises_phi_loss + von_mises_psi_loss + sasa_loss / 60 + flex_loss
+                    if isinstance(model, GINSweetNet):
+                        phi_pred, psi_pred = angular_pred
+                        phi_loss, psi_loss = periodic_mse(torch.stack([phi_pred[~mono_mask], psi_pred[~mono_mask]], dim=1), y[~mono_mask, :2])
+                    else:
+                        weights_logits_von_mises, mus_von_mises, kappas_von_mises = angular_pred
+                        phi_loss, psi_loss = mixture_von_mises_nll(y[~mono_mask, :2], weights_logits_von_mises[~mono_mask], mus_von_mises[~mono_mask], kappas_von_mises[~mono_mask])
+                    sasa_loss = torch.sqrt(torch.nn.functional.mse_loss(sasa_pred[mono_mask], y[mono_mask, 2]))
+                    flex_loss = torch.sqrt(torch.nn.functional.mse_loss(flex_pred[mono_mask], y[mono_mask, 3]))
+                    loss = phi_loss + psi_loss + sasa_loss / 60 + flex_loss
                     if phase == "train":
                         loss.backward()
                         optimizer.step()
 
                 # Collecting relevant metrics
                 running_metrics["loss"].append(loss.item())
-                running_metrics["phi_loss"].append(von_mises_phi_loss.item())
-                running_metrics["psi_loss"].append(von_mises_psi_loss.item())
+                running_metrics["phi_loss"].append(phi_loss.item())
+                running_metrics["psi_loss"].append(psi_loss.item())
                 running_metrics["sasa_loss"].append(sasa_loss.item())
                 running_metrics["flex_loss"].append(flex_loss.item())
                 running_metrics["weights"].append(batch.max().cpu() + 1)
@@ -387,28 +660,32 @@ def train_model(
                     continue
                 metrics[phase][key].append(np.average(running_metrics[key], weights = running_metrics["weights"]))
 
-            print('{} Loss: {:.4f} Phi: {:.4f} Psi: {:.4f} SASA: {:.4f} Flex: {:.4f}'.format(
+            print('{} Loss: {:.4f} Phi: {:.4f} Psi: {:.4f} SASA: {:.4f} Flex: {:.4f} LR: {:.4f}'.format(
                 phase, 
                 metrics[phase]["loss"][-1], 
                 metrics[phase]["phi_loss"][-1], 
                 metrics[phase]["psi_loss"][-1], 
                 metrics[phase]["sasa_loss"][-1], 
                 metrics[phase]["flex_loss"][-1],
+                float(scheduler.get_last_lr()[0]) if scheduler else 0.001,
             ))
 
             # Keep best model state_dict
             if phase == "val":
                 if metrics[phase]["loss"][-1] <= best_loss:
                     best_loss = metrics[phase]["loss"][-1]
+                    best_model = copy.deepcopy(model.state_dict())
 
-                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step(metrics[phase]["loss"][-1])
-                else:
-                    scheduler.step()
+                if scheduler is not None:
+                    if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                        scheduler.step(metrics[phase]["loss"][-1])
+                    else:
+                        scheduler.step()
         print()
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
     print('Best val loss: {:4f}'.format(best_loss))
-    return metrics
+    model.load_state_dict(best_model)
+    return metrics, model
