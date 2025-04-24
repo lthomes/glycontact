@@ -81,10 +81,9 @@ def sample_from_model(model, structures, count=10):
     Returns:
         List of sampled angles
     """
-    model.eval()
     sampled_structures = []
-    if isinstance(model, GINSweetNet):
-        count = 1
+    if isinstance(model, VonMisesSweetNet):
+        model.eval()
     with torch.no_grad():
         for i, (data, graph) in enumerate(structures):
             print(f"\r{i + 1} / {len(structures)}", end="")
@@ -131,28 +130,46 @@ def eval_baseline(nxgraphs, phi_pred, psi_pred, sasa_pred, flex_pred):
     return predicted_structures
 
 
+def angular_rmse(predicted_graphs, true_graphs):
+    count = len(predicted_graphs) / len(true_graphs)
+    phi_preds, psi_preds, phi_labels, psi_labels = [], [], [], []
+    for i, true_g in enumerate(true_graphs):
+        for pred_g in predicted_graphs[int(i * count) : int((i + 1) * count)]:
+            for node in pred_g.nodes:
+                if "phi_angle" in pred_g.nodes[node]:
+                    phi_preds.append(pred_g.nodes[node]["phi_angle"])
+                    phi_labels.append(true_g.nodes[node]["phi_angle"])
+                    psi_preds.append(pred_g.nodes[node]["psi_angle"])
+                    psi_labels.append(true_g.nodes[node]["psi_angle"])
+    phi_rmse, psi_rmse = periodic_rmse(torch.stack([torch.tensor(phi_preds), torch.tensor(psi_preds)], dim=1), torch.stack([torch.tensor(phi_labels), torch.tensor(psi_labels)], dim=1))
+    print(phi_rmse, psi_rmse)
+    return torch.mean(phi_rmse).item() * 180 / np.pi, torch.mean(psi_rmse).item() * 180 / np.pi
+
+
 def value_rmse(predicted_graphs, true_graphs, name: str):
     count = len(predicted_graphs) / len(true_graphs)
     preds, labels = [], []
     for i, true_g in enumerate(true_graphs):
-        pred_g = predicted_graphs[int(i * count)]
-        for node in pred_g.nodes:
-            if name in pred_g.nodes[node]:
-                preds.append(pred_g.nodes[node][name])
-                labels.append(true_g.nodes[node][name])
+        for pred_g in predicted_graphs[int(i * count) : int((i + 1) * count)]:
+            for node in pred_g.nodes:
+                if name in pred_g.nodes[node]:
+                    preds.append(pred_g.nodes[node][name])
+                    labels.append(true_g.nodes[node][name])
     return np.sqrt(np.mean((np.array(preds) - np.array(labels)) ** 2))
 
 
 def evaluate_model(model, structures, count: int = 10, sampling: bool = False):
+    nx_structures = [s[1] for s in structures]
     if isinstance(model, torch.nn.Module):
         predictions = sample_from_model(model, structures, count)
     else:
-        predictions = eval_baseline([s[1] for s in structures], model[0], model[1], model[2], model[3])
+        predictions = eval_baseline(nx_structures, model[0], model[1], model[2], model[3])
     
-    sasa_rmse = value_rmse(predictions, [s[1] for s in structures], "SASA")
-    flex_rmse = value_rmse(predictions, [s[1] for s in structures], "flexibility")
+    phi_rmse, psi_rmse = angular_rmse(predictions, nx_structures)
+    sasa_rmse = value_rmse(predictions, nx_structures, "SASA")
+    flex_rmse = value_rmse(predictions, nx_structures, "flexibility")
 
-    return 0, 0, sasa_rmse, flex_rmse, predictions
+    return phi_rmse, psi_rmse, sasa_rmse, flex_rmse, predictions
 
 
 def node2y(attr):
