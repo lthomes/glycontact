@@ -7,6 +7,7 @@ from typing import Literal
 
 import torch
 import numpy as np
+import networkx as nx
 import torch_geometric
 from torch_geometric.nn import GINConv
 from datasail.sail import datasail
@@ -33,143 +34,6 @@ def get_all_structure_graphs(glycan, stereo=None, libr=None):
     glycan_path = Path("glycans_pdb") / glycan
     matching_pdbs = [glycan_path / pdb for pdb in sorted(os.listdir(glycan_path)) if stereo in pdb]
     return [(pdb, get_structure_graph(glycan, libr=libr, example_path=pdb)) for pdb in matching_pdbs]
-
-
-def build_baselines(data, fn):
-    sasa, flex, phi, psi = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
-    for g in data:
-        for n in g.nodes:
-            if "SASA" in g.nodes[n]:
-                name = g.nodes[n]["string_labels"]
-                sasa[name].append(g.nodes[n]["SASA"])
-                flex[name].append(g.nodes[n]["flexibility"])
-            elif "phi_angle" in g.nodes[n]:
-                name = (
-                    g.nodes[list(g.predecessors(n))[0]]["string_labels"], 
-                    g.nodes[list(g.successors(n))[0]]["string_labels"]
-                )
-                phi[name].append(g.nodes[n]["phi_angle"])
-                psi[name].append(g.nodes[n]["psi_angle"])
-    for pred in [sasa, flex, phi, psi]:
-        default = []
-        for k, v in pred.items():
-            default += v
-            pred[k] = fn(v)
-        pred["default"] = fn(default)
-    return lambda x: phi.get(x, phi["default"]), \
-        lambda x: psi.get(x, psi["default"]), \
-        lambda x: sasa.get(x, sasa["default"]), \
-        lambda x: flex.get(x, flex["default"])
-
-
-def sample_angle(weights, mus, kappas):
-    idx = np.random.choice(len(weights), p=weights)
-    mu = (mus[idx] * np.pi / 180.0) % (2 * np.pi)
-    if mu > np.pi:
-        mu -= 2 * np.pi
-    angle_sample = torch.distributions.von_mises.VonMises(mu, kappas[idx] + 1e-10).sample()
-    angle_sample = angle_sample * 180.0 / np.pi
-    return angle_sample
-
-
-def sample_from_model(model, structures, count=10):
-    """
-    Sample from the model using the provided structures
-    Args:
-        model: The trained model
-        structures: List of structure graphs
-    Returns:
-        List of sampled angles
-    """
-    sampled_structures = []
-    if isinstance(model, VonMisesSweetNet):
-        model.eval()
-    with torch.no_grad():
-        for i, (data, graph) in enumerate(structures):
-            print(f"\r{i + 1} / {len(structures)}", end="")
-            for _ in range(count):
-                angular_pred, sasa_pred, flex_pred = model(data.x.to("cuda"), data.edge_index.to("cuda"))
-
-                G = copy.deepcopy(graph)
-                for n, node in enumerate(G.nodes):
-                    if "phi_angle" in G.nodes[node]:
-                        if isinstance(model, GINSweetNet):
-                            phi_pred, psi_pred = angular_pred
-                            G.nodes[node]["phi_angle"] = phi_pred[n].item()
-                            G.nodes[node]["psi_angle"] = psi_pred[n].item()
-                        else:
-                            weights_logits_von_mises, mus_von_mises, kappas_von_mises = angular_pred
-                            weights_von_mises = torch.nn.functional.softmax(weights_logits_von_mises, dim=2).cpu().numpy()
-                            G.nodes[node]["phi_angle"] = sample_angle(weights_von_mises[n, 0], mus_von_mises[n, 0], kappas_von_mises[n, 0]).item()
-                            G.nodes[node]["psi_angle"] = sample_angle(weights_von_mises[n, 1], mus_von_mises[n, 1], kappas_von_mises[n, 1]).item()
-                    elif "SASA" in G.nodes[node]:
-                        G.nodes[node]["SASA"] = sasa_pred[n].item()
-                        G.nodes[node]["flexibility"] = flex_pred[n].item()
-                sampled_structures.append(G)
-    print()
-    return sampled_structures
-
-
-def eval_baseline(nxgraphs, phi_pred, psi_pred, sasa_pred, flex_pred):
-    predicted_structures = []
-    for graph in nxgraphs:
-        pred = copy.deepcopy(graph)
-        for node in graph.nodes:
-            if "phi_angle" in graph.nodes[node]:
-                name = (
-                    graph.nodes[list(graph.predecessors(node))[0]]["string_labels"], 
-                    graph.nodes[list(graph.successors(node))[0]]["string_labels"]
-                )
-                pred.nodes[node]["phi_angle"] = phi_pred(name)
-                pred.nodes[node]["psi_angle"] = psi_pred(name)
-            if "SASA" in graph.nodes[node]:
-                name = graph.nodes[node]["string_labels"]
-                pred.nodes[node]["SASA"] = sasa_pred(name)
-                pred.nodes[node]["flexibility"] = flex_pred(name)
-        predicted_structures.append(pred)
-    return predicted_structures
-
-
-def angular_rmse(predicted_graphs, true_graphs):
-    count = len(predicted_graphs) / len(true_graphs)
-    phi_preds, psi_preds, phi_labels, psi_labels = [], [], [], []
-    for i, true_g in enumerate(true_graphs):
-        for pred_g in predicted_graphs[int(i * count) : int((i + 1) * count)]:
-            for node in pred_g.nodes:
-                if "phi_angle" in pred_g.nodes[node]:
-                    phi_preds.append(pred_g.nodes[node]["phi_angle"])
-                    phi_labels.append(true_g.nodes[node]["phi_angle"])
-                    psi_preds.append(pred_g.nodes[node]["psi_angle"])
-                    psi_labels.append(true_g.nodes[node]["psi_angle"])
-    phi_rmse, psi_rmse = periodic_rmse(torch.stack([torch.tensor(phi_preds), torch.tensor(psi_preds)], dim=1), torch.stack([torch.tensor(phi_labels), torch.tensor(psi_labels)], dim=1))
-    print(phi_rmse, psi_rmse)
-    return torch.mean(phi_rmse).item() * 180 / np.pi, torch.mean(psi_rmse).item() * 180 / np.pi
-
-
-def value_rmse(predicted_graphs, true_graphs, name: str):
-    count = len(predicted_graphs) / len(true_graphs)
-    preds, labels = [], []
-    for i, true_g in enumerate(true_graphs):
-        for pred_g in predicted_graphs[int(i * count) : int((i + 1) * count)]:
-            for node in pred_g.nodes:
-                if name in pred_g.nodes[node]:
-                    preds.append(pred_g.nodes[node][name])
-                    labels.append(true_g.nodes[node][name])
-    return np.sqrt(np.mean((np.array(preds) - np.array(labels)) ** 2))
-
-
-def evaluate_model(model, structures, count: int = 10, sampling: bool = False):
-    nx_structures = [s[1] for s in structures]
-    if isinstance(model, torch.nn.Module):
-        predictions = sample_from_model(model, structures, count)
-    else:
-        predictions = eval_baseline(nx_structures, model[0], model[1], model[2], model[3])
-    
-    phi_rmse, psi_rmse = angular_rmse(predictions, nx_structures)
-    sasa_rmse = value_rmse(predictions, nx_structures, "SASA")
-    flex_rmse = value_rmse(predictions, nx_structures, "flexibility")
-
-    return phi_rmse, psi_rmse, sasa_rmse, flex_rmse, predictions
 
 
 def node2y(attr):
@@ -289,9 +153,22 @@ def create_dataset(fresh: bool = True):
     return train, test
 
 
-def mean_conformer(conformers):
+def mean_conformer(conformers: list[tuple[float, tuple[torch_geometric.data.Data, nx.DiGraph]]]) -> tuple[torch_geometric.data.Data, nx.DiGraph]:
+    """
+    Calculate the mean conformer from a list of conformers.
+    
+    Args:
+        conformers (list): A list of tuples containing the weight and the structure graph.
+
+    Returns:
+        tuple: A tuple containing the mean PyTorch Geometric Data object and the mean structure graph.
+    """
     G = copy.deepcopy(conformers[0][1][1])
     weights, graphs = zip(*conformers)
+
+    # normalize weights
+    weights = [w / sum(weights) for w in weights]
+
     for i, (weight, (_, nxg)) in enumerate(zip(weights, graphs)):
         for node in nxg.nodes:
             if "phi_angle" in nxg.nodes[node]:
@@ -308,17 +185,20 @@ def mean_conformer(conformers):
                 else:
                     G.nodes[node]["SASA"] += weight * nxg.nodes[node]["SASA"]
                     G.nodes[node]["flexibility"] += weight * nxg.nodes[node]["flexibility"]
-    for node in G.nodes:
-        if "phi_angle" in G.nodes[node]:
-            G.nodes[node]["phi_angle"] /= sum(weights)
-            G.nodes[node]["psi_angle"] /= sum(weights)
-        elif "SASA" in G.nodes[node]:
-            G.nodes[node]["SASA"] /= sum(weights)
-            G.nodes[node]["flexibility"] /= sum(weights)
     return graph2pyg(G, 1, conformers[0][1][0].iupac, conformers[0][1][0].iupac + "_mean"), G
 
 
-def clean_split(split, mode: Literal["mean", "max"] = "max"):
+def clean_split(split: list[tuple[torch_geometric.data.Data, nx.DiGraph]], mode: Literal["mean", "max"] = "max") -> tuple[torch_geometric.data.Data, nx.DiGraph]:
+    """
+    Clean the split data by condensing it to one conformer per glycan.
+    
+    Args:
+        split (list): A list of tuples containing the PyTorch Geometric Data object and the structure graph.
+        mode (str): The mode for condensing the data. "mean" for mean conformer, "max" for maximum weight conformer.
+
+    Returns:
+        list: A list of tuples containing the condensed PyTorch Geometric Data object and the structure graph.
+    """
     data = defaultdict(list)
     for pyg, nxg in split:
         data[pyg.iupac].append((int(pyg.weight.item()), (pyg, nxg)))
@@ -384,7 +264,7 @@ class GINSweetNet(torch.nn.Module):
             torch.nn.Linear(hidden_dim // 4, self.num_classes),
         )
 
-    def forward(self, x, edge_index):
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> tuple[tuple[torch.Tensor, torch.Tensor], torch.Tensor, torch.Tensor]:
         """
         Forward pass through the model.
         
@@ -481,7 +361,14 @@ class VonMisesSweetNet(torch.nn.Module):
             torch.nn.Linear(hidden_dim // 4, 2),
         )
     
-    def predict_von_mises_parameters(self, x, head, fc_weights, fc_means, fc_kappas):
+    def predict_von_mises_parameters(
+            self, 
+            x: torch.Tensor, 
+            head: torch.nn.Module, 
+            fc_weights: torch.nn.Module, 
+            fc_means: torch.nn.Module, 
+            fc_kappas: torch.nn.Module
+        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Predict mixture parameters for a given input tensor.
 
@@ -513,7 +400,7 @@ class VonMisesSweetNet(torch.nn.Module):
         kappas = torch.nn.functional.softplus(kappas_raw.view(batch_size, 2, self.num_components))
         return weights_logits, means, kappas
 
-    def forward(self, x, edge_index):
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> tuple[tuple[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor, torch.Tensor]:
         """
         Forward pass through the model.
         
@@ -543,7 +430,7 @@ class VonMisesSweetNet(torch.nn.Module):
         return (weights_logits_von_mises, means_von_mises, kappas_von_mises), sasa_pred, flex_pred
 
     
-def mixture_von_mises_nll(angles, weights_logits, mus, kappas):
+def mixture_von_mises_nll(angles: torch.Tensor, weights_logits: torch.Tensor, mus: torch.Tensor, kappas: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Negative log-likelihood for mixture of von Mises distributions
 
@@ -588,7 +475,222 @@ def mixture_von_mises_nll(angles, weights_logits, mus, kappas):
     return -torch.mean(total_log_probs[0]), -torch.mean(total_log_probs[1])
 
 
-def periodic_mse(pred, target):
+
+def build_baselines(data: list[nx.DiGraph], fn: callable = np.mean) -> tuple[callable, callable, callable, callable]:
+    """
+    Build baseline functions to predict SASA, flexibility, phi, and psi angles based on monosaccharides.
+
+    Args:
+        data: List of structure graphs.
+        fn: Function to aggregate values (e.g., np.mean, np.median).
+    
+    Returns:
+        Tuple of functions for phi, psi, SASA, and flexibility.
+    """
+    sasa, flex, phi, psi = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+    for g in data:
+        for n in g.nodes:
+            if "SASA" in g.nodes[n]:
+                name = g.nodes[n]["string_labels"]
+                sasa[name].append(g.nodes[n]["SASA"])
+                flex[name].append(g.nodes[n]["flexibility"])
+            elif "phi_angle" in g.nodes[n]:
+                name = (
+                    g.nodes[list(g.predecessors(n))[0]]["string_labels"], 
+                    g.nodes[list(g.successors(n))[0]]["string_labels"]
+                )
+                phi[name].append(g.nodes[n]["phi_angle"])
+                psi[name].append(g.nodes[n]["psi_angle"])
+    for pred in [sasa, flex, phi, psi]:
+        default = []
+        for k, v in pred.items():
+            default += v
+            pred[k] = fn(v)
+        pred["default"] = fn(default)
+    return lambda x: phi.get(x, phi["default"]), \
+        lambda x: psi.get(x, psi["default"]), \
+        lambda x: sasa.get(x, sasa["default"]), \
+        lambda x: flex.get(x, flex["default"])
+
+
+def sample_angle(weights: torch.Tensor, mus: torch.Tensor, kappas: torch.Tensor) -> torch.Tensor:
+    """
+    Sample an angle from a mixture of von Mises distributions.
+
+    Args:
+        weights: Mixture weights [n_components]
+        mus: Mean angles in degrees [n_components]
+        kappas: Concentration parameters [n_components]
+    
+    Returns:
+        Sampled angle in degrees
+    """
+    idx = np.random.choice(len(weights), p=weights)
+    mu = (mus[idx] * np.pi / 180.0) % (2 * np.pi)
+    if mu > np.pi:
+        mu -= 2 * np.pi
+    angle_sample = torch.distributions.von_mises.VonMises(mu, kappas[idx] + 1e-10).sample()
+    angle_sample = angle_sample * 180.0 / np.pi
+    return angle_sample
+
+
+def sample_from_model(model: torch.nn.Module, structures: list[torch_geometric.data.Data, nx.DiGraph], count: int = 10):
+    """
+    Sample from the model using the provided structures
+
+    Args:
+        model: The trained model
+        structures: List of structure graphs
+    
+    Returns:
+        List of sampled angles
+    """
+    sampled_structures = []
+    if isinstance(model, VonMisesSweetNet):
+        model.eval()
+    with torch.no_grad():
+        for i, (data, graph) in enumerate(structures):
+            print(f"\r{i + 1} / {len(structures)}", end="")
+            for _ in range(count):
+                angular_pred, sasa_pred, flex_pred = model(data.x.to("cuda"), data.edge_index.to("cuda"))
+
+                G = copy.deepcopy(graph)
+                for n, node in enumerate(G.nodes):
+                    if "phi_angle" in G.nodes[node]:
+                        if isinstance(model, GINSweetNet):
+                            phi_pred, psi_pred = angular_pred
+                            G.nodes[node]["phi_angle"] = phi_pred[n].item()
+                            G.nodes[node]["psi_angle"] = psi_pred[n].item()
+                        else:
+                            weights_logits_von_mises, mus_von_mises, kappas_von_mises = angular_pred
+                            weights_von_mises = torch.nn.functional.softmax(weights_logits_von_mises, dim=2).cpu().numpy()
+                            G.nodes[node]["phi_angle"] = sample_angle(weights_von_mises[n, 0], mus_von_mises[n, 0], kappas_von_mises[n, 0]).item()
+                            G.nodes[node]["psi_angle"] = sample_angle(weights_von_mises[n, 1], mus_von_mises[n, 1], kappas_von_mises[n, 1]).item()
+                    elif "SASA" in G.nodes[node]:
+                        G.nodes[node]["SASA"] = sasa_pred[n].item()
+                        G.nodes[node]["flexibility"] = flex_pred[n].item()
+                sampled_structures.append(G)
+    print()
+    return sampled_structures
+
+
+def eval_baseline(nxgraphs: list[nx.DiGraph], phi_pred: callable, psi_pred: callable, sasa_pred: callable, flex_pred: callable) -> list[nx.DiGraph]:
+    """
+    Evaluate the baseline model by predicting angles and properties for each graph.
+
+    Args:
+        nxgraphs: List of structure graphs
+        phi_pred: Function to predict phi angles
+        psi_pred: Function to predict psi angles
+        sasa_pred: Function to predict SASA
+        flex_pred: Function to predict flexibility
+
+    Returns:
+        List of predicted structure graphs
+    """
+    predicted_structures = []
+    for graph in nxgraphs:
+        pred = copy.deepcopy(graph)
+        for node in graph.nodes:
+            if "phi_angle" in graph.nodes[node]:
+                name = (
+                    graph.nodes[list(graph.predecessors(node))[0]]["string_labels"], 
+                    graph.nodes[list(graph.successors(node))[0]]["string_labels"]
+                )
+                pred.nodes[node]["phi_angle"] = phi_pred(name)
+                pred.nodes[node]["psi_angle"] = psi_pred(name)
+            if "SASA" in graph.nodes[node]:
+                name = graph.nodes[node]["string_labels"]
+                pred.nodes[node]["SASA"] = sasa_pred(name)
+                pred.nodes[node]["flexibility"] = flex_pred(name)
+        predicted_structures.append(pred)
+    return predicted_structures
+
+
+def angular_rmse(predicted_graphs: list[nx.DiGraph], true_graphs: list[nx.DiGraph]) -> tuple[float, float]:
+    """
+    Calculate the root mean square error (RMSE) for phi and psi angles.
+    
+    Args:
+        predicted_graphs: List of predicted structure graphs
+        true_graphs: List of true structure graphs
+    
+    Returns:
+        Tuple of RMSE for phi and psi angles
+    """
+    count = len(predicted_graphs) / len(true_graphs)
+    phi_preds, psi_preds, phi_labels, psi_labels = [], [], [], []
+    for i, true_g in enumerate(true_graphs):
+        for pred_g in predicted_graphs[int(i * count) : int((i + 1) * count)]:
+            for node in pred_g.nodes:
+                if "phi_angle" in pred_g.nodes[node]:
+                    phi_preds.append(pred_g.nodes[node]["phi_angle"])
+                    phi_labels.append(true_g.nodes[node]["phi_angle"])
+                    psi_preds.append(pred_g.nodes[node]["psi_angle"])
+                    psi_labels.append(true_g.nodes[node]["psi_angle"])
+    phi_rmse, psi_rmse = periodic_rmse(torch.stack([torch.tensor(phi_preds), torch.tensor(psi_preds)], dim=1), torch.stack([torch.tensor(phi_labels), torch.tensor(psi_labels)], dim=1))
+    return torch.mean(phi_rmse).item() * 180 / np.pi, torch.mean(psi_rmse).item() * 180 / np.pi
+
+
+def value_rmse(predicted_graphs: list[nx.DiGraph], true_graphs: list[nx.DiGraph], name: Literal["SASA", "flexibility"]) -> float:
+    """
+    Calculate the root mean square error (RMSE) for a specific property (SASA or flexibility).
+
+    Args:
+        predicted_graphs: List of predicted structure graphs
+        true_graphs: List of true structure graphs
+        name: The property to calculate RMSE for (e.g., "SASA" or "flexibility")
+
+    Returns:
+        RMSE value
+    """
+    count = len(predicted_graphs) / len(true_graphs)
+    preds, labels = [], []
+    for i, true_g in enumerate(true_graphs):
+        for pred_g in predicted_graphs[int(i * count) : int((i + 1) * count)]:
+            for node in pred_g.nodes:
+                if name in pred_g.nodes[node]:
+                    preds.append(pred_g.nodes[node][name])
+                    labels.append(true_g.nodes[node][name])
+    return np.sqrt(np.mean((np.array(preds) - np.array(labels)) ** 2))
+
+
+def evaluate_model(model: torch.nn.Module | tuple[callable, callable, callable, callable], structures, count: int = 10):
+    """
+    Evaluate the model by sampling angles and properties from the structure graphs.
+
+    Args:
+        model: The trained model. This can be a trained SweetNet or a tuple of baseline predictors for phi, psi, SASA, and flexibility.
+        structures: List of structure graphs
+        count: Number of samples to generate for each graph
+    
+    Returns:
+        Tuple of RMSE values for phi, psi, SASA, and flexibility
+    """
+    nx_structures = [s[1] for s in structures]
+    if isinstance(model, torch.nn.Module):
+        predictions = sample_from_model(model, structures, count)
+    else:
+        predictions = eval_baseline(nx_structures, model[0], model[1], model[2], model[3])
+    
+    phi_rmse, psi_rmse = angular_rmse(predictions, nx_structures)
+    sasa_rmse = value_rmse(predictions, nx_structures, "SASA")
+    flex_rmse = value_rmse(predictions, nx_structures, "flexibility")
+
+    return phi_rmse, psi_rmse, sasa_rmse, flex_rmse, predictions
+
+
+def periodic_mse(pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Calculate the periodic mean squared error (MSE) for angles.
+
+    Args:
+        pred: Predicted angles in degrees [batch_size, 2]
+        target: True angles in degrees [batch_size, 2]
+
+    Returns:
+        Tuple of MSE for phi and psi angles
+    """
     # Convert angles to radians for easier calculation
     pred_rad = pred * (np.pi / 180.0)
     target_rad = target * (np.pi / 180.0)
@@ -606,7 +708,17 @@ def periodic_mse(pred, target):
     return phi_loss, psi_loss
 
 
-def periodic_rmse(pred, target):
+def periodic_rmse(pred: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Calculate the periodic root mean square error (RMSE) for angles.
+
+    Args:
+        pred: Predicted angles in degrees [batch_size, 2]
+        target: True angles in degrees [batch_size, 2]
+
+    Returns:
+        Tuple of RMSE for phi and psi angles
+    """
     phi_mse, psi_mse = periodic_mse(pred, target)
     phi_rmse = torch.sqrt(phi_mse)
     psi_rmse = torch.sqrt(psi_mse)
