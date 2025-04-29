@@ -1405,7 +1405,7 @@ def extract_glycan_coords(pdb_filepath, residue_ids=None, main_chain_only=False)
   Returns:
       tuple: (coordinates_array, atom_labels).
   """
-  df = extract_3D_coordinates(pdb_filepath)
+  df = extract_3D_coordinates(pdb_filepath) if not isinstance(pdb_filepath, pd.DataFrame) else pdb_filepath
   if residue_ids:
     df = df[df['residue_number'].isin(residue_ids)]
   # Get common atoms present in most glycans
@@ -1513,11 +1513,13 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
         - ref_conformer: PDB path of reference conformer
         - mobile_conformer: PDB path of mobile conformer
   """
-  if '.' not in ref_glycan+mobile_glycan:
+  if isinstance(ref_glycan, str) and '.' not in ref_glycan:
     ref_conformers = list((global_path / canonicalize_iupac(ref_glycan)).glob('*.pdb'))
-    mobile_conformers = list((global_path / canonicalize_iupac(mobile_glycan)).glob('*.pdb'))
   else:
     ref_conformers = [ref_glycan]
+  if isinstance(mobile_glycan, str) and '.' not in mobile_glycan:
+    mobile_conformers = list((global_path / canonicalize_iupac(mobile_glycan)).glob('*.pdb'))
+  else:
     mobile_conformers = [mobile_glycan]
   best_rmsd = float('inf')
   best_result = {'rmsd': best_rmsd}
@@ -1550,7 +1552,7 @@ def _process_single_glycan(args):
   for pdb_file in pdb_files:
     try:
       coords, _ = extract_glycan_coords(pdb_file)
-      if abs(len(coords) - len(query_coords)) <= 5:
+      if abs(len(coords) - len(query_coords)) <= 50:
         transformed, rmsd = align_point_sets(coords, query_coords, fast=fast)
         if rmsd < best_rmsd:
           best_rmsd = rmsd
@@ -1561,7 +1563,7 @@ def _process_single_glycan(args):
 
 
 def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_cutoff=2.0,
-                        fast=False):
+                        fast=False, unilectin_id=0):
   """Search for structurally similar glycans by comparing against all available
   conformers/structures and keeping the best match for each glycan.
   Args:
@@ -1570,6 +1572,7 @@ def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_
     glycan_database (list, optional): List of candidate glycan structures
     rmsd_cutoff (float): Maximum RMSD to consider as similar
     fast (bool): Whether to use SVD-based Kabsch algorithm with k-d trees or Nelder-Mead optimization. Defaults to the latter
+    unilectin_id (int): if pdb_path=='unilectin', will retrieve that structure ID from unilectin; Defaults to the first
   Returns:
     List of (glycan_id, rmsd, best_structure) tuples sorted by similarity
   """
@@ -1577,8 +1580,8 @@ def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_
   glycans = get_glycoshape_IUPAC() if glycan_database is None else glycan_database
   glycans = [g for g in glycans if (global_path / g).exists() and any((global_path / g).iterdir()) and g!=query_glycan]
   # Get query coordinates once
-  query_glycan = get_example_pdb(query_glycan) if pdb_path is None else pdb_path
-  query_coords, _ = extract_glycan_coords(query_glycan)
+  query_glycan_path = get_example_pdb(query_glycan) if pdb_path is None else pdb_path
+  query_coords, _ = extract_glycan_coords(query_glycan_path) if pdb_path!='unilectin' else extract_glycan_coords(unilectin_data[query_glycan][unilectin_id][0])
   # Prepare args for parallel processing
   process_args = [(g, query_coords, rmsd_cutoff, fast) for g in glycans]
   results = []

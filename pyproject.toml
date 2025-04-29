@@ -25,20 +25,19 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
-    "pandas",
-    "numpy",
-    "matplotlib",
-    "networkx",
-    "seaborn",
     "plotly",
-    "scipy",
     "requests",
     "mdtraj",
-    "glycowork[draw] @ git+https://github.com/BojarLab/glycowork.git@dev",
+    "glycowork @ git+https://github.com/BojarLab/glycowork.git@dev",
     "imageio",
     "py3Dmol",
-    "tqdm",
-    "IPython"
+    "tqdm"
+]
+
+[project.optional-dependencies]
+ml = [
+    "torch>=2.0.0",
+    "torch-geometric>=2.3.0",
 ]
 
 [project.urls]

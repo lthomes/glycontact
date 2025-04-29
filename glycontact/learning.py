@@ -2,18 +2,37 @@ from collections import defaultdict
 import os
 import copy
 import time
+import importlib.util
+import warnings
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional, Union, Dict, List, Tuple, Callable
 
-import torch
 import numpy as np
 import networkx as nx
-import torch_geometric
-from torch_geometric.nn import GINConv
-from datasail.sail import datasail
 from glycowork.glycan_data.loader import HashableDict, lib
 
 from glycontact.process import get_all_clusters_frequency, get_structure_graph
+
+
+# Try to import optional ML dependencies
+try:
+    import torch
+    import torch_geometric
+    from torch_geometric.nn import GINConv
+except ImportError:
+    raise ImportError(
+        "Missing required dependencies for machine learning functionality. "
+        "Please install glycontact with ML support: pip install glycontact[ml]"
+    )
+
+# Try to import DataSAIL
+try:
+    from datasail.sail import datasail
+except ImportError:
+    raise ImportError(
+        "DataSAIL is required for some functionality but not found. "
+        "Please install from: https://github.com/kalininalab/DataSAIL"
+    )
 
 
 def get_all_structure_graphs(glycan, stereo=None, libr=None):

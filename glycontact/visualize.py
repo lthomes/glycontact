@@ -300,7 +300,7 @@ def _do_3d_plotting(pdb_file, coords, labels, view=None, color='', bond_color=No
   if view is None:
     view = py3Dmol.view(width=800, height=800)
   # Read PDB file for connectivity information
-  pdb_content = open(pdb_file, 'r').read() if isinstance(pdb_file, Path) else df_to_pdb_content(pdb_file[0])
+  pdb_content = open(pdb_file, 'r').read() if isinstance(pdb_file, (Path, str)) else df_to_pdb_content(pdb_file[0])
   if pos != 'ref':
     pdb_content = pdb_content.replace(" X ", " B ")
   # Create a new PDB content with updated coordinates
@@ -377,12 +377,13 @@ def _do_3d_plotting(pdb_file, coords, labels, view=None, color='', bond_color=No
 
 
 @rescue_glycans
-def plot_glycan_3D(glycan, stereo=None, view=None, show_volume=False, volume_params={}, **plot_kwargs):
+def plot_glycan_3D(glycan, filepath=None, stereo=None, view=None, show_volume=False, volume_params={}, **plot_kwargs):
   """Creates a 3D visualization of a glycan structure from its IUPAC sequence.
   Args:
       glycan (str): IUPAC glycan sequence.
       stereo (str, optional): Stereochemistry specification ('alpha' or 'beta'). 
                             If None, inferred from sequence.
+      filepath (str, optional): Path to PDB file to use.
       view (py3Dmol.view, optional): Existing py3Dmol view object. If None, creates new.
       show_volume (bool, optional): Whether to show volume surface. Defaults to False.
       volume_params (dict, optional): Parameters for volume rendering.
@@ -394,7 +395,7 @@ def plot_glycan_3D(glycan, stereo=None, view=None, show_volume=False, volume_par
   if view is None:
     view = py3Dmol.view(width=800, height=800)
   # Get structure data
-  pdb_file = get_example_pdb(glycan, stereo=stereo)
+  pdb_file = get_example_pdb(glycan, stereo=stereo) if not filepath else filepath
   coords_df = pdb_file[0] if isinstance(pdb_file, tuple) else extract_3D_coordinates(pdb_file)
   coords_df = coords_df[~coords_df['atom_name'].str.startswith('H')]
   coords = coords_df[['x', 'y', 'z']].values
