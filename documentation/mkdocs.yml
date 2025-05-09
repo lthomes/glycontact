@@ -10,7 +10,11 @@ theme:
 
 nav:
   - GlyContact: index.md
-  - Installation: installation.md
+  - Overview: overview.md
+  - process: process.md
+  - visualize: visualize.md
+  - learning: learning.md
+  - lwca: lwca.md
   - Examples: examples.md
 
 markdown_extensions:
@@ -26,9 +30,25 @@ markdown_extensions:
   - pymdownx.emoji
   - pymdownx.tasklist
   - pymdownx.tilde
+  - pymdownx.details
+
+
 
 extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/lthomes/glycontact
 
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+              docstring_style: google  # or "numpy"
+              show_source: false
+              show_root_heading: true
+              show_signature_annotations: true
+              merge_init_into_class: true
+              heading_level: 2

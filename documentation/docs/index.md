@@ -2,11 +2,15 @@
 ---
 **GlyContact** is a Python package for retrieving, processing, and analyzing 3D glycan structures from GlycoShape, molecular dynamics, NMR, or X-ray crystallography.
 
-While glycans are traditionally represented as linear text sequences, their **branched structures and high flexibility** create a complex 3D landscape that affects their biological function.
+The package is organized into the following main modules:
 
+- `process`: utilities for parsing and analyzing 3D glycan structures
+- `visualize`: functions for plotting contact maps and glycan features
+- `learning`: functions for training and using machine learning models
+- `lwca`: ...
 
-## **Key Features**
----
+<br>
+
 GlyContact provides a comprehensive toolkit that enables researchers to:
 
 - Visualize complex glycan structures with **3D-SNFG symbols**
@@ -17,9 +21,50 @@ GlyContact provides a comprehensive toolkit that enables researchers to:
 
 These capabilities help bridge the gap between **glycan sequence** and **function** by revealing the critical spatial arrangements that determine molecular recognition.
 
+<br><br>
+
+
+## **Install**
+---
+**GlyContact** can be cloned from GitHub or directly installed using **pip**.
+
+All modules in **GlyContact**, except for ml, can be run on any machine. For most parts of ml, however, a GPU is needed to load and run **torch_geometric**.
+
+<br>
+
+### **Requirements**
+---
+We recommend using at least the following Python and packages versions to ensure similar functionalities and performances as described in the publication: 
+
+- **Python** ≥ 3.12.6 
+- **glycowork** ≥ 1.6 
+- **scipy** ≥ 1.11
+
+<br>
+
+### **Installation using pip**
+---
+If you are using pip, all the required Python packages will be automatically installed with GlyContact.
+
+```bash
+pip install git+https://github.com/lthomes/glycontact/
+```
+
+<br>
+
+An optional `[ml]` install is available for machine learning features:
+
+```bash
+pip install git+https://github.com/lthomes/glycontact/[ml]
+```
+
+<br><br>
+
 ## **Contributing**
 ---
 Contributions to GlyContact are welcome! Please feel free to submit a Pull Request.
+
+<br><br>
 
 ## **Citation**
 ---
@@ -27,8 +72,11 @@ If you use GlyContact in your research, please cite:
 
 ```[Citation information will be added upon publication]```
 
+<br><br>
+
 ## **Licence**
 ---
 This project is licensed under the MIT License—see the LICENSE file for details.
 
 ```  ```
+
