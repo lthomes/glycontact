@@ -4,7 +4,7 @@ site_url: https://lthomes.github.io/glycontact/
 theme:
   name: material
   palette:
-    scheme: slate
+    scheme: default
     primary: teal
     accent: indigo
 
@@ -12,7 +12,6 @@ nav:
   - GlyContact: index.md
   - Installation: installation.md
   - Examples: examples.md
-  - References: references.md
 
 markdown_extensions:
   - toc:
