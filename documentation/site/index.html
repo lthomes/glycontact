@@ -12,7 +12,7 @@
       
       
       
-        <link rel="next" href="installation/">
+        <link rel="next" href="overview/">
       
       
       <link rel="icon" href="assets/images/favicon.png">
@@ -45,6 +45,8 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
     
     <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -252,11 +254,35 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
-      Key Features
+      Install
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Install">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Requirements
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation-using-pip" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation using pip
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -302,12 +328,12 @@
   
   
     <li class="md-nav__item">
-      <a href="installation/" class="md-nav__link">
+      <a href="overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Installation
+    Overview
     
   </span>
   
@@ -324,7 +350,95 @@
   
   
     <li class="md-nav__item">
-      <a href="examples/" class="md-nav__link">
+      <a href="process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    process
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="visualize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    visualize
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    learning
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="lwca/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    lwca
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="examples.md" class="md-nav__link">
         
   
   
@@ -366,11 +480,35 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
-      Key Features
+      Install
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Install">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Requirements
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation-using-pip" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation using pip
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -420,9 +558,14 @@
 <h1 id="glycontact-3d-analysis-of-glycan-structures">GlyContact: 3D Analysis of Glycan Structures<a class="headerlink" href="#glycontact-3d-analysis-of-glycan-structures" title="Permanent link">&para;</a></h1>
 <hr />
 <p><strong>GlyContact</strong> is a Python package for retrieving, processing, and analyzing 3D glycan structures from GlycoShape, molecular dynamics, NMR, or X-ray crystallography.</p>
-<p>While glycans are traditionally represented as linear text sequences, their <strong>branched structures and high flexibility</strong> create a complex 3D landscape that affects their biological function.</p>
-<h2 id="key-features"><strong>Key Features</strong><a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
-<hr />
+<p>The package is organized into the following main modules:</p>
+<ul>
+<li><code>process</code>: utilities for parsing and analyzing 3D glycan structures</li>
+<li><code>visualize</code>: functions for plotting contact maps and glycan features</li>
+<li><code>learning</code>: functions for training and using machine learning models</li>
+<li><code>lwca</code>: ...</li>
+</ul>
+<p><br></p>
 <p>GlyContact provides a comprehensive toolkit that enables researchers to:</p>
 <ul>
 <li>Visualize complex glycan structures with <strong>3D-SNFG symbols</strong></li>
@@ -432,13 +575,40 @@
 <li>Generate structural features for <strong>machine learning applications</strong></li>
 </ul>
 <p>These capabilities help bridge the gap between <strong>glycan sequence</strong> and <strong>function</strong> by revealing the critical spatial arrangements that determine molecular recognition.</p>
+<p><br><br></p>
+<h2 id="install"><strong>Install</strong><a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
+<hr />
+<p><strong>GlyContact</strong> can be cloned from GitHub or directly installed using <strong>pip</strong>.</p>
+<p>All modules in <strong>GlyContact</strong>, except for ml, can be run on any machine. For most parts of ml, however, a GPU is needed to load and run <strong>torch_geometric</strong>.</p>
+<p><br></p>
+<h3 id="requirements"><strong>Requirements</strong><a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h3>
+<hr />
+<p>We recommend using at least the following Python and packages versions to ensure similar functionalities and performances as described in the publication: </p>
+<ul>
+<li><strong>Python</strong> ≥ 3.12.6 </li>
+<li><strong>glycowork</strong> ≥ 1.6 </li>
+<li><strong>scipy</strong> ≥ 1.11</li>
+</ul>
+<p><br></p>
+<h3 id="installation-using-pip"><strong>Installation using pip</strong><a class="headerlink" href="#installation-using-pip" title="Permanent link">&para;</a></h3>
+<hr />
+<p>If you are using pip, all the required Python packages will be automatically installed with GlyContact.</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lthomes/glycontact/
+</code></pre></div>
+<p><br></p>
+<p>An optional <code>[ml]</code> install is available for machine learning features:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lthomes/glycontact/<span class="o">[</span>ml<span class="o">]</span>
+</code></pre></div>
+<p><br><br></p>
 <h2 id="contributing"><strong>Contributing</strong><a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <hr />
 <p>Contributions to GlyContact are welcome! Please feel free to submit a Pull Request.</p>
+<p><br><br></p>
 <h2 id="citation"><strong>Citation</strong><a class="headerlink" href="#citation" title="Permanent link">&para;</a></h2>
 <hr />
 <p>If you use GlyContact in your research, please cite:</p>
 <p><code>[Citation information will be added upon publication]</code></p>
+<p><br><br></p>
 <h2 id="licence"><strong>Licence</strong><a class="headerlink" href="#licence" title="Permanent link">&para;</a></h2>
 <hr />
 <p>This project is licensed under the MIT License—see the LICENSE file for details.</p>

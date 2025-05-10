@@ -14,7 +14,6 @@ nav:
   - process: process.md
   - visualize: visualize.md
   - learning: learning.md
-  - lwca: lwca.md
   - Examples: examples.md
 
 markdown_extensions:
