@@ -7,6 +7,7 @@ import os
 import copy
 import datetime
 import tempfile
+import tarfile
 from collections import Counter, defaultdict
 import subprocess
 import json
@@ -50,14 +51,40 @@ map_dict = {'NDG':'GlcNAc(a','NAG':'GlcNAc(b','MAN':'Man(a', 'BMA':'Man(b', 'AFL
             "SIO":"Neu4Ac5Ac9Ac(a", "1GN":"GalN(b", "KD5":"4,7-Anhydro-Kdof(a", "BDR":"Ribf(b", "G1P":"Glc1P(a", "3LJ":"GlcN6S(a", "SGN":"GlcNS6S(a", "95Z":"ManN(a", "GCS":"GlcN(b", "ADA":"GalA(a",
             "GTR":"GalA(b", "3MG":"Glc3Me(b", "ZB1":"Glc3Me(a", "NGS":"GlcNAc6S(b", "ANA":"Neu2Me4Ac5Ac(a", "M6D":"Man6P(b", "G6S":"Gal6S(b", "GL0":"Gul(b", "ZEL":"D-Alt1Me(b", "EGA":"Gal1Et(b",
             "ARA":"Ara(a", "2FG":"Gal2F(b", "MN0":"Neu2Me5Gc(a", "PZU":"Par(a", "A1Q":"LDManHepOMe(a", "GQ1":"Glc4S(a", "G4S":"Gal4S(b", "6S2":"GlcNAc1Me6S(b", "6C2":"GlcNAcA1Me(b",
-            "X6X":"GalN(a", "TVD":"GlcNAc1NAc(b", "MJJ":"Neu2Me5Ac9Ac(a", "K5B":"4,7-Anhydro-Kdof(b"}
+            "X6X":"GalN(a", "TVD":"GlcNAc1NAc(b", "MJJ":"Neu2Me5Ac9Ac(a", "K5B":"4,7-Anhydro-Kdof(b", "GAL3SO3": "Gal3S(b", "GAL3SO36SO3": "Gal3S6S(b", "GAL4SO36SO3": "Gal4S6S(b", "GAL4SO3": "Gal4S(b",
+            "A2G6SO3": "GalNAc6S(a", "GLC6SO3": "Glc6S(a", "0KN": "Kdn(a"}
 NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
 BETA = {'GlcNAc', 'Glc', 'Xyl'}
+C2_PATTERN = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM|0KN'
 
 PACKAGE_ROOT = Path(__file__).parent.parent
-global_path = PACKAGE_ROOT / 'glycans_pdb/'
 this_dir = Path(__file__).parent
-json_path = this_dir / "20250205_GLYCOSHAPE.json"
+
+original_path = PACKAGE_ROOT / 'glycans_pdb/'
+fallback_path = this_dir / 'glycans_pdb'
+
+if original_path.exists() and any(original_path.iterdir()):
+    global_path = original_path
+else:
+    # If fallback doesn't exist or is empty, download the data
+    if not fallback_path.exists() or not any(fallback_path.iterdir()):
+        print(f"PDB files not found. Downloading to {fallback_path}...")
+        os.makedirs(fallback_path, exist_ok=True)
+        # Download tarball (hosted on GitHub)
+        # TBD
+        url = "https://github.com/lthomes/glycontact/releases/download/v1.0/glycans_pdb.tar.gz"
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp_file:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            for chunk in response.iter_content(chunk_size=8192):
+                tmp_file.write(chunk)
+            tmp_path = tmp_file.name
+        with tarfile.open(tmp_path, "r:gz") as tar:
+            tar.extractall(path=this_dir)
+        os.unlink(tmp_path)
+    global_path = fallback_path
+
+json_path = this_dir / "20250516_GLYCOSHAPE.json"
 with open(json_path) as f:
     glycoshape_mirror = json.load(f)
 with open(this_dir / "glycan_graphs.pkl", "rb") as file:
@@ -437,9 +464,8 @@ def process_interactions(coordinates_df):
   """
   # First check if we only have one monosaccharide
   unique_residues = coordinates_df['residue_number'].nunique()
-  c2_pattern = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM'
-  carbon_mask = (((~coordinates_df['monosaccharide'].str.contains(c2_pattern, na=False)) & (coordinates_df['atom_name'] == 'C1')) |
-                 ((coordinates_df['monosaccharide'].str.contains(c2_pattern, na=False)) & (coordinates_df['atom_name'] == 'C2')))
+  carbon_mask = (((~coordinates_df['monosaccharide'].str.contains(C2_PATTERN, na=False)) & (coordinates_df['atom_name'] == 'C1')) |
+                 ((coordinates_df['monosaccharide'].str.contains(C2_PATTERN, na=False)) & (coordinates_df['atom_name'] == 'C2')))
   oxygen_mask = coordinates_df['atom_name'].isin({'O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O8', 'O9', 'S1'})
   carbons = coordinates_df[carbon_mask]
   oxygens = coordinates_df[oxygen_mask]
@@ -501,14 +527,14 @@ def create_mapping_dict_and_interactions(df, valid_fragments, n_glycan, furanose
   """
   special_cases = {
             'Man(a1-4)', '-R', 'GlcNAc(a1-1)', 'GlcNAc(b1-1)', 'GalNAc(a1-1)',
-            'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)',
+            'GalNAc(b1-1)', 'Glc(a1-1)', 'Glc(b1-1)', 'Rha(a1-1)', 'Rha(b1-1)', "Glc6S(a1-1)",
             'Neu5Ac(a2-1)', 'Neu5Ac(b2-1)', 'Neu5Ac(a1-1)', 'Man(a1-1)', 'Man(b1-1)', 'Gal(a1-1)',
             'Gal(b1-1)', 'Fuc(a1-1)', 'Fuc(b1-1)', 'Xyl(a1-1)', 'Xyl(b1-1)', 'L-Gul(a1-1)',  'L-Gul(b1-1)',
             'GlcA(a1-1)', 'GlcA(b1-1)', 'GlcNS(a1-1)', 'GlcNS(b1-1)', 'GlcNAc6S(a1-1)',
             'GlcNAc6S(b1-1)', 'GlcNS6S(a1-1)', 'GlcNS6S(b1-1)', 'GlcNS3S6S(a1-1)',
             'GlcNS3S6S(b1-1)', '2-4-diacetimido-2-4-6-trideoxyhexose(a1-1)', 'D-Araf(a1-1)', 'D-Araf(b1-1)',
             'GlcA2S(a1-1)', 'GlcA2S(b1-1)', 'Ara(a1-1)', 'Ara(b1-1)', 'Araf(a1-1)', 'Araf(b1-1)', 'Fru(a2-1)',
-            'Fru(b2-1)', 'Fruf(a2-1)', 'Fruf(b2-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)'
+            'Fru(b2-1)', 'Fruf(a2-1)', 'Fruf(b2-1)', 'ManNAc(a1-1)', 'ManNAc(b1-1)', "GalNAc6S(a1-1)"
         }
 
   def d_conversion(mono, trigger, i = 1):
@@ -610,9 +636,9 @@ def glycowork_vs_glycontact_interactions(glycowork_interactions, glycontact_inte
         ('Glc', 'a1-1'), ('Glc', 'b1-1'), ('Rha', 'b1-1'), ('Rha', 'a1-1'),
         ('Neu5Ac', 'b2-1'), ('Neu5Ac', 'a2-1'), ('Neu5Ac', 'a1-1'), ('Man', 'b1-1'), ('Man', 'a1-1'),
         ('Gal', 'b1-1'), ('Gal', 'a1-1'), ('Fuc', 'b1-1'), ('Fuc', 'a1-1'),
-        ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'),
+        ('Xyl', 'b1-1'), ('Xyl', 'a1-1'), ('GlcA', 'a1-1'), ('GlcA', 'b1-1'), ("Glc6S", "a1-1"),
         ('GlcNS', 'a1-1'), ('GlcNS', 'b1-1'), ('GlcNAc6S', 'a1-1'), ('b1-4', ''),
-        ('GlcNAc6S', 'b1-1'), ('GlcNS6S', 'a1-1'), ('GlcNS6S', 'b1-1'),
+        ('GlcNAc6S', 'b1-1'), ('GlcNS6S', 'a1-1'), ('GlcNS6S', 'b1-1'), ("GalNAc6S", "a1-1"),
         ('GlcNS3S6S', 'a1-1'), ('GlcNS3S6S', 'b1-1'), ('L-Gul', 'a1-1'), ('L-Gul', 'b1-1'),
         ('2-4-diacetimido-2-4-6-trideoxyhexose', 'a1-1'), ('GlcA2S', 'a1-1'), ('D-Araf', 'a1-1'), ('D-Araf', 'b1-1'),
         ('GlcA2S', 'b1-1'), ('Ara', 'a1-1'), ('Ara', 'b1-1'), ('Araf', 'a1-1'), ('Araf', 'b1-1'), ('Fru', 'a2-1'),
@@ -718,10 +744,10 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   CUSTOM_PDB = {
         "NAG6SO3": "GlcNAc6S", "NDG6SO3": "GlcNAc6S", "NDG3SO3": "GlcNAc3S6S",
         "NGA4SO3": "GalNAc4S", "IDR2SO3": "IdoA2S", "BDP3SO3": "GlcA3S", "TOA2SO3": "GalA2S",
-        "BDP2SO3": "GlcA2S", "SIA9ACX": "Neu5Ac9Ac", "MAN3MEX": "Man3Me",
+        "BDP2SO3": "GlcA2S", "SIA9ACX": "Neu5Ac9Ac", "MAN3MEX": "Man3Me", "GLC6SO3": "Glc6S",
         "SIA9MEX": "Neu5Ac9Me", "NGC9MEX": "Neu5Gc9Me", "BDP4MEX": "GlcA4Me",
-        "GAL6SO3": "Gal6S", "NAG6PCX": "GlcNAc6PCho", "UYS6SO3": "GlcNS6S",
-        "4YS6SO3": "GlcNS6S", "6YS6SO3": "GlcNS6S", "GCU2SO3": "GlcA2S",
+        "GAL6SO3": "Gal6S", "NAG6PCX": "GlcNAc6PCho", "UYS6SO3": "GlcNS6S", "A2G6SO3": "GalNAc6S",
+        "4YS6SO3": "GlcNS6S", "6YS6SO3": "GlcNS6S", "GCU2SO3": "GlcA2S", "GAL3SO3": "Gal3S", "GAL4SO3": "Gal4S",
         'VYS3SO3': 'GlcNS3S6S', 'VYS6SO3': 'GlcNS3S6S', 'FUC2MEX': 'Fuc2Me', 'FUC3MEX': 'Fuc3Me', 'FUC4MEX': 'Fuc4Me',
         "QYS3SO3": "GlcNS3S6S", "QYS6SO3": "GlcNS3S6S", "RAM2MEX": "Rha2Me", "RAM3MEX": "Rha3Me"
     }
@@ -1641,7 +1667,7 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
     donor = df[df['residue_number'] == donor_res]
     acceptor = df[df['residue_number'] == acceptor_res]
     # Special handling for sialic acid
-    if any(mono in donor_key for mono in {'SIA', 'NGC'}):
+    if any(mono in donor_key for mono in {'SIA', 'NGC', '0KN'}):
       o5_name = 'O6'  # In sialic acid, O5 is actually O6
       c1_name = 'C2'      # Use C2 instead of C1 for sialic acid
     else:
