@@ -1,7 +1,6 @@
 from collections import defaultdict
 import os
 import copy
-import pickle
 import time
 from pathlib import Path
 from typing import Literal
@@ -22,15 +21,6 @@ except ImportError:
     raise ImportError(
         "Missing required dependencies for machine learning functionality. "
         "Please install glycontact with ML support: pip install glycontact[ml]"
-    )
-
-# Try to import DataSAIL
-try:
-    from datasail.sail import datasail
-except ImportError:
-    raise ImportError(
-        "DataSAIL is required for some functionality but not found. "
-        "Please install from: https://github.com/kalininalab/DataSAIL"
     )
 
 
@@ -123,7 +113,6 @@ def create_dataset(fresh: bool = True):
     """
     # Get all clusters and their frequencies.
     data = {}
-    rha_galnac = []
     for iupac, freqs in get_all_clusters_frequency(fresh=fresh).items():
         try:
             pygs = []
@@ -146,16 +135,22 @@ def create_dataset(fresh: bool = True):
             weights = weights / np.sum(weights)
             for (pyg, _), weight in zip(pygs, weights):
                 pyg.weight = torch.tensor([weight])
-            if "Rha(a1-3)GalNAc" in iupac:
-                rha_galnac.extend(pygs)
-            else:
-                data[iupac] = pygs
+            data[iupac] = pygs
         except FileNotFoundError:
             pass
         except Exception as e:
             print(f"Error for {iupac}: {e}")
     
     # Split the data into training and testing sets using DataSAIL. The glycans are weights based on their number of conformers.
+    # Try to import DataSAIL
+    try:
+        from datasail.sail import datasail
+    except ImportError:
+        raise ImportError(
+            "DataSAIL is required for some functionality but not found. "
+            "Please install from: https://github.com/kalininalab/DataSAIL"
+        )
+
     e_splits, _, _ = datasail(
         techniques=["I1e"],
         names=["train", "test"],
@@ -166,7 +161,7 @@ def create_dataset(fresh: bool = True):
     )
 
     # Create the training and testing datasets.
-    train, test = [], rha_galnac
+    train, test = [], []
     for name, split in e_splits["I1e"][0].items():
         if split == "train":
             train.extend(data[name])
