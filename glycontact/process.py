@@ -14,6 +14,7 @@ import json
 import requests
 import shutil
 import pickle
+import tarfile
 from random import Random
 from io import StringIO
 from tqdm import tqdm
@@ -63,25 +64,20 @@ this_dir = Path(__file__).parent
 original_path = PACKAGE_ROOT / 'glycans_pdb/'
 fallback_path = this_dir / 'glycans_pdb'
 
+# Try original path first, then fallback path
 if original_path.exists() and any(original_path.iterdir()):
     global_path = original_path
 else:
-    # If fallback doesn't exist or is empty, download the data
+    # If fallback doesn't exist or is empty, extract the bundled tarball
     if not fallback_path.exists() or not any(fallback_path.iterdir()):
-        print(f"PDB files not found. Downloading to {fallback_path}...")
+        print(f"PDB files not found. Extracting to {fallback_path}...")
         os.makedirs(fallback_path, exist_ok=True)
-        # Download tarball (hosted on GitHub)
-        # TBD
-        url = "https://github.com/lthomes/glycontact/releases/download/v1.0/glycans_pdb.tar.gz"
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp_file:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            for chunk in response.iter_content(chunk_size=8192):
-                tmp_file.write(chunk)
-            tmp_path = tmp_file.name
-        with tarfile.open(tmp_path, "r:gz") as tar:
+        # Path to bundled tarball
+        tarball_path = this_dir / 'glycans_pdb.tar.gz'
+        # Extract the tarball
+        with tarfile.open(tarball_path, "r:gz") as tar:
             tar.extractall(path=this_dir)
-        os.unlink(tmp_path)
+        print(f"PDB files extracted to {fallback_path}")
     global_path = fallback_path
 
 json_path = this_dir / "20250516_GLYCOSHAPE.json"

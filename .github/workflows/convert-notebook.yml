@@ -1,10 +1,8 @@
 name: Convert Jupyter Notebook to README.md
-
 on:
   push:
     paths:
-      - 'README.ipynb'  # Only run when this file changes
-
+      - 'README.ipynb'
 jobs:
   convert_notebook:
     runs-on: ubuntu-latest
@@ -13,7 +11,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -33,6 +33,6 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
-          git add README_files/
+          git add README_files/ || true
           git diff --quiet && git diff --staged --quiet || git commit -m "Update README.md from notebook"
           git push
