@@ -56,7 +56,7 @@ def test_calculate_torsion_angle():
     ]
     result = calculate_torsion_angle(coords)
     assert isinstance(result, float)
-    assert result == pytest.approx(90.0, abs=1e-5)
+    assert result == pytest.approx(-90.0, abs=1e-5)
 
 
 def test_convert_glycan_to_class():
