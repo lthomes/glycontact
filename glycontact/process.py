@@ -1633,9 +1633,9 @@ def calculate_torsion_angle(coords: List[List[float]]) -> float:
   n1 /= np.linalg.norm(n1)
   n2 /= np.linalg.norm(n2)
   return np.degrees(np.arctan2(
-    np.dot(np.cross(n1, v[1]/np.linalg.norm(v[1])), n2),
-    np.dot(n1, n2)
-    ))
+      np.dot(np.cross(n1, n2), v[1]/np.linalg.norm(v[1])),
+      np.dot(n1, n2)
+      ))
 
 
 def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[str]]) -> pd.DataFrame:

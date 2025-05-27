@@ -28,7 +28,7 @@ dependencies = [
     "plotly",
     "requests",
     "mdtraj",
-    "glycowork @ git+https://github.com/BojarLab/glycowork.git@dev",
+    "glycowork>=1.6",
     "imageio",
     "py3Dmol",
     "tqdm"
