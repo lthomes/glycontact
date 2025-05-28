@@ -7,6 +7,11 @@ __pycache__/
 *.gif
 *.png
 
+# Old organization
+glycans_pdb/
+./glycontact/*.tar
+
+
 # But allow them in documentation directories
 !README_files/*.svg
 !README_files/*.gif

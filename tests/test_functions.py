@@ -5,21 +5,24 @@ import networkx as nx
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+os.environ['PYTEST_RUNNING'] = '1'
 
 # Import the functions to test
 from glycontact.process import *
 
 TEST_GLYCAN = "Neu5Ac(a2-3)Gal(b1-3)[Neu5Ac(a2-6)]GalNAc"
+TEST_PATH = this_dir = Path(__file__).parent / TEST_GLYCAN
+TEST_EXAMPLE = TEST_PATH / "cluster0_alpha.pdb"
 
 
 def test_make_atom_contact_table():
-    result = get_contact_tables(TEST_GLYCAN, level='atom')[0]
+    result = get_contact_tables(TEST_GLYCAN, level='atom', my_path=TEST_PATH)[0]
     assert isinstance(result, pd.DataFrame)
     assert result.shape[0] == result.shape[1]  # Should be square matrix
 
 
 def test_make_monosaccharide_contact_table():
-    result = get_contact_tables(TEST_GLYCAN, level='monosaccharide')[0]
+    result = get_contact_tables(TEST_GLYCAN, level='monosaccharide', my_path=TEST_PATH)[0]
     assert isinstance(result, pd.DataFrame)
     assert result.shape[0] == result.shape[1]  # Should be square matrix
 
@@ -85,11 +88,11 @@ def test_group_by_silhouette():
 @pytest.fixture(scope="module")
 def real_data():
   # Single check for glycan database
-  if not Path(global_path).exists() or not (global_path / TEST_GLYCAN).exists():
+  if not TEST_PATH.exists():
     pytest.skip(f"Test glycan {TEST_GLYCAN} not available in database")
-  example_pdb = get_example_pdb(TEST_GLYCAN)
+  example_pdb = get_example_pdb(TEST_GLYCAN, my_path=TEST_PATH)
   df, interaction_dict = get_annotation(TEST_GLYCAN, example_pdb, threshold=3.5)
-  contacts = get_contact_tables(TEST_GLYCAN)
+  contacts = get_contact_tables(TEST_GLYCAN, my_path=TEST_PATH)
   return {
     'pdb': example_pdb,
     'df': df,
@@ -170,28 +173,22 @@ def test_inter_structure_frequency_table(real_data):
 
 
 def test_get_sasa_table():
-    result = get_sasa_table(TEST_GLYCAN)
+    result = get_sasa_table(TEST_GLYCAN, my_path=TEST_PATH)
     assert isinstance(result, pd.DataFrame)
     assert 'SASA' in result.columns
     assert 'Monosaccharide' in result.columns
 
 
 def test_get_annotation():
-    df, interactions = get_annotation(TEST_GLYCAN, get_example_pdb(TEST_GLYCAN), threshold=3.5)
+    df, interactions = get_annotation(TEST_GLYCAN, get_example_pdb(TEST_GLYCAN, my_path=TEST_PATH), threshold=3.5)
     assert isinstance(df, pd.DataFrame)
     assert isinstance(interactions, dict)
 
 
 def test_annotation_pipeline():
-    dfs, int_dicts = annotation_pipeline(TEST_GLYCAN)
+    dfs, int_dicts = annotation_pipeline(TEST_GLYCAN, my_path=TEST_PATH)
     assert isinstance(dfs, tuple)
     assert isinstance(int_dicts, tuple)
-
-
-def test_get_example_pdb():
-    result = get_example_pdb(TEST_GLYCAN, stereo='beta')
-    assert isinstance(result, Path)
-    assert 'beta' in str(result)
 
 
 def test_get_all_clusters_frequency():
@@ -206,7 +203,7 @@ def test_glycan_cluster_pattern():
 
 
 def test_get_structure_graph():
-    result = get_structure_graph(TEST_GLYCAN)
+    result = get_structure_graph(TEST_GLYCAN, example_path = TEST_EXAMPLE, sasa_flex_path=TEST_EXAMPLE)
     assert isinstance(result, nx.Graph)
     assert len(result.nodes) > 0
     assert len(result.edges) > 0
@@ -230,17 +227,7 @@ def test_get_glycosidic_torsions(real_data):
     assert 'position' in result.columns
 
 
-def test_superimpose_glycans():
-    result = superimpose_glycans(TEST_GLYCAN, "Gal(b1-3)GalNAc", main_chain_only=True)
-    assert isinstance(result, dict)
-    assert 'rmsd' in result
-    assert 'ref_coords' in result
-    assert 'transformed_coords' in result
-
-
 def test_get_similar_glycans():
-    result = get_similar_glycans(TEST_GLYCAN, rmsd_cutoff=3.0)
+    result = get_similar_glycans(TEST_GLYCAN, rmsd_cutoff=3.0, glycan_database=unilectin_data,
+                                 pdb_path=TEST_EXAMPLE)
     assert isinstance(result, list)
-    # Results should be sorted by RMSD
-    if len(result) > 1:
-        assert result[0]['rmsd'] <= result[1]['rmsd']

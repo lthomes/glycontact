@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import re
 import os
+import glob
 import copy
 import datetime
 import tempfile
@@ -14,7 +15,7 @@ import json
 import requests
 import shutil
 import pickle
-import tarfile
+import zipfile
 from random import Random
 from io import StringIO
 from tqdm import tqdm
@@ -58,27 +59,93 @@ NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
 BETA = {'GlcNAc', 'Glc', 'Xyl'}
 C2_PATTERN = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM|0KN'
 
-PACKAGE_ROOT = Path(__file__).parent.parent
+def process_glycoshape(fallback_path):
+  # Get the directory where the zip file is located  
+  base_dir = Path(fallback_path).parent
+  # Create GlycoShape folder first
+  glycoshape_dir = base_dir / "GlycoShape"
+  glycoshape_dir.mkdir(exist_ok=True)
+  # Extract main GlycoShape.zip into the GlycoShape folder
+  with zipfile.ZipFile(fallback_path, 'r') as zip_ref:
+    zip_ref.extractall(glycoshape_dir)
+  # Remove original GlycoShape.zip
+  Path(fallback_path).unlink()
+  # Change working directory to GlycoShape folder
+  original_cwd = os.getcwd()
+  os.chdir(glycoshape_dir)
+  try:
+    # Get list of zip files first for tqdm
+    zip_files = list(Path(".").glob("*.zip"))
+    # Process all zip files within the GlycoShape folder
+    for zip_file in tqdm(zip_files, desc="Processing glycan structures"):
+      # Get canonical glycan name for folder
+      glycan_name = zip_file.stem
+      try:
+        canonical_name = canonicalize_iupac(glycan_name)
+      except ValueError:
+        canonical_name = glycan_name
+      glycan_folder = Path(canonical_name)
+      glycan_folder.mkdir(exist_ok=True)
+      # Extract individual zip file into its own folder
+      with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        zip_ref.extractall(glycan_folder)
+      # Remove the zip file after extraction
+      zip_file.unlink()
+    # Process all extracted glycan folders
+    for item in Path(".").iterdir():
+      if not item.is_dir():
+        continue
+      glycan_folder = item
+      # Find PDB_format_ATOM subfolder
+      pdb_atom_path = None
+      for root, dirs, files in os.walk(glycan_folder):
+        if "PDB_format_ATOM" in dirs:
+          pdb_atom_path = Path(root) / "PDB_format_ATOM"
+          break
+      if pdb_atom_path and pdb_atom_path.exists():
+        # Move all files from PDB_format_ATOM to glycan folder
+        for file in pdb_atom_path.iterdir():
+          if file.is_file():
+            shutil.move(str(file), str(glycan_folder / file.name))
+        # Remove everything except moved PDB files
+        for item in glycan_folder.iterdir():
+          if item.is_dir():
+            shutil.rmtree(item)
+          elif not item.suffix.lower() in ['.pdb']:
+            item.unlink()
+        # Rename files to remove .PDB part
+        for file in glycan_folder.iterdir():
+          if ".PDB." in file.name:
+            new_name = file.name.replace(".PDB.", ".")
+            file.rename(glycan_folder / new_name)
+  finally:
+    # Change back to original directory
+    os.chdir(original_cwd)
+  # Rename GlycoShape folder to glycans_pdb
+  glycoshape_dir.rename(base_dir / "glycans_pdb")
+
 this_dir = Path(__file__).parent
 
-original_path = PACKAGE_ROOT / 'glycans_pdb/'
-fallback_path = this_dir / 'glycans_pdb'
+original_path = this_dir / 'glycans_pdb'
+fallback_path = this_dir / 'GlycoShape.zip'
 
-# Try original path first, then fallback path
-if original_path.exists() and any(original_path.iterdir()):
-    global_path = original_path
+# Skip GlycoShape check during testing
+if os.getenv('PYTEST_RUNNING') or os.getenv('SKIP_GLYCOSHAPE_CHECK'):
+  global_path = Path('dummy_glycoshape_path')
 else:
-    # If fallback doesn't exist or is empty, extract the bundled tarball
-    if not fallback_path.exists() or not any(fallback_path.iterdir()):
-        print(f"PDB files not found. Extracting to {fallback_path}...")
-        os.makedirs(fallback_path, exist_ok=True)
-        # Path to bundled tarball
-        tarball_path = this_dir / 'glycans_pdb.tar.gz'
-        # Extract the tarball
-        with tarfile.open(tarball_path, "r:gz") as tar:
-            tar.extractall(path=this_dir)
-        print(f"PDB files extracted to {fallback_path}")
-    global_path = fallback_path
+  # Try original path first, then fallback path
+  if original_path.exists() and any(original_path.iterdir()):
+    global_path = original_path
+  elif fallback_path.exists():
+    print("Identified zipped GlycoShape structures. Starting extraction.")
+    process_glycoshape(fallback_path)
+    if original_path.exists() and any(original_path.iterdir()):
+      print("Extraction succeeded. You should be good to go.")
+      global_path = original_path
+    else:
+      raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
+  else:
+    raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")
 
 json_path = this_dir / "20250516_GLYCOSHAPE.json"
 with open(json_path) as f:
@@ -145,17 +212,18 @@ class ComplexDictSerializer(DataFrameSerializer):
 unilectin_data = ComplexDictSerializer.deserialize_complex_dict(this_dir / "unilectin_data.json")
 
 
-def fetch_pdbs(glycan, stereo=None):
+def fetch_pdbs(glycan, stereo=None, my_path=None):
   """Given a glycan sequence, will query first GlycoShape and then UniLectin for appropriate PDB files.
   Args:
   glycan (str): glycan sequence, preferably in IUPAC-condensed
   stereo (str, optional): specification of whether reducing end alpha or beta is desired
+  my_path (Path, optional): custom path to PDB folder
   Returns:
   List of Paths for GlycoShape and list of get_annotation output tuples for UniLectin
   """
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  glycan_path = global_path / glycan
+  glycan_path = global_path / glycan if my_path is None else my_path
   if not os.path.exists(glycan_path):
     if glycan in unilectin_data:
       matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
@@ -340,7 +408,7 @@ def get_contact_tables(glycan, stereo=None, level="monosaccharide", my_path=None
   """
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  dfs, _ = annotation_pipeline(glycan, pdb_file=my_path, threshold=3.5, stereo=stereo)
+  dfs, _ = annotation_pipeline(glycan, my_path=my_path, threshold=3.5, stereo=stereo)
   if level == "monosaccharide":
     return [make_monosaccharide_contact_table(df, mode='distance', threshold=200) for df in dfs if len(df) > 0]
   else:
@@ -847,32 +915,34 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
 
 
 @rescue_glycans
-def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None) :
+def annotation_pipeline(glycan, pdb_file = None, threshold=3.5, stereo = None, my_path=None) :
   """Combines all annotation steps to convert PDB files to IUPAC annotations.
   Args:
       glycan (str): IUPAC glycan sequence.
       pdb_file (str or list, optional): Path(s) to PDB file(s).
       threshold (float): Distance threshold for interactions.
       stereo (str, optional): 'alpha' or 'beta' stereochemistry.
+      my_path (Path, optional): Custom path to PDB folder
   Returns:
       tuple: (dataframes_list, interaction_dicts_list) for all processed PDBs.
   """
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   if pdb_file is None:
-    pdb_file = fetch_pdbs(glycan, stereo=stereo)
+    pdb_file = fetch_pdbs(glycan, stereo=stereo, my_path=my_path)
   if not isinstance(pdb_file, list):
     pdb_file = [pdb_file]
   dfs, int_dicts = zip(*[get_annotation(glycan, pdb, threshold=threshold) for pdb in pdb_file])
   return dfs, int_dicts
 
 
-def get_example_pdb(glycan, stereo=None, rng=None):
+def get_example_pdb(glycan, stereo=None, rng=None, my_path=None):
   """Gets a random example PDB file for a given glycan.
   Args:
       glycan (str): IUPAC glycan sequence.
       stereo (str, optional): 'alpha' or 'beta' stereochemistry.
       rng (Random, optional): Random number generator instance.
+      my_path (Path, optional): Custom path to pdb folder
   Returns:
       Path: Path to a randomly selected PDB file.
   """
@@ -880,7 +950,7 @@ def get_example_pdb(glycan, stereo=None, rng=None):
     rng = Random(42)
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  matching_pdbs = fetch_pdbs(glycan, stereo=stereo)
+  matching_pdbs = fetch_pdbs(glycan, stereo=stereo, my_path=my_path)
   cluster_frequencies = get_all_clusters_frequency().get(glycan, [100.0])
   weights = cluster_frequencies if len(cluster_frequencies) == len(matching_pdbs) else None
   return rng.choices(matching_pdbs, weights=weights)[0]
@@ -1178,14 +1248,14 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
-  if my_path is not None and isinstance(my_path, str) and "." in my_path:
+  if my_path is not None and (isinstance(my_path, str) and "." in my_path) or (isinstance(my_path, Path)):
     df, _ = get_annotation(glycan, my_path)
     flexibility = df.groupby('residue_number')['temperature_factor'].mean()
     flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
     monosaccharides = df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
     flex_df = pd.DataFrame({'Monosaccharide_id': df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
   else:
-    pdbs = fetch_pdbs(glycan, stereo=stereo)
+    pdbs = fetch_pdbs(glycan, stereo=stereo, my_path=my_path)
     if not isinstance(pdbs[0], tuple):
       flex = (inter_structure_variability_table(glycan, stereo=stereo, mode=mode, my_path=my_path)).mean()
       conversion_factor = np.sqrt(np.pi/2)  # converts mean absolute deviation to standard deviation
@@ -1376,7 +1446,7 @@ def create_glycontact_annotated_graph(glycan: str, mapping_dict, g_contact, libr
   return glycowork_graph
 
 
-def get_structure_graph(glycan, stereo=None, libr=None, example_path=None, sasa_flex_path=None):
+def get_structure_graph(glycan, stereo=None, libr=None, example_path=None, sasa_flex_path=None, my_path=None):
   """Creates a complete annotated structure graph for a glycan.
   Args:
       glycan (str): IUPAC glycan sequence.
@@ -1384,14 +1454,16 @@ def get_structure_graph(glycan, stereo=None, libr=None, example_path=None, sasa_
       libr (dict, optional): Custom library for glycan_to_nxGraph.
       example_path (str, optional): Path to a specific PDB, used for torsion angles and conformations.
       sasa_flex_path (str, optional): Path to a specific PDB, used for SASA/flexibility.
+      my_path(Path, optional): Custom path to PDB folder
   Returns:
       nx.Graph: Fully annotated structure graph with all available properties.
   """
   glycan = canonicalize_iupac(glycan)
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
+  sasa_flex_path = sasa_flex_path if sasa_flex_path else my_path
   merged = compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=stereo, my_path=sasa_flex_path)
-  example = example_path if example_path is not None else get_example_pdb(glycan, stereo=stereo)
+  example = example_path if example_path is not None else get_example_pdb(glycan, stereo=stereo, my_path=my_path)
   res, datadict = get_annotation(glycan, example, threshold=3.5)
   ring_conf = get_ring_conformations(res)
   torsion_angles = get_glycosidic_torsions(res, datadict)
