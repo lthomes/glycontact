@@ -24,6 +24,31 @@ An optional `[ml]` install is available for machine learning features:
 pip install -e git+https://github.com/lthomes/glycontact.git#egg=glycontact[ml]
 ```
 
+## Getting PDB files
+
+When you try GlyContact for the first time, you may encounter the following FileNotFoundError message: 
+
+```
+You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.
+```
+
+GlyContact requires, at least, a folder with PDB files collected from GlycoShape. Below are the steps you must follow to get them:
+
+1. Download the GlycoShape.zip file from https://glycoshape.org/downloads
+
+2. If you have installed GlyContact using the `pip install` command, place the GlycoShape.zip file directly in the GlyContact package folder. The package location is indicated when you first `pip install` GlyContact. If, instead, you have git cloned GlyContact, place the GlycoShape.zip file in the `glycontact/glycontact/` folder. 
+
+3. Retry the import of the package. If you see the following lines, it works!
+
+```
+Identified zipped GlycoShape structures. Starting extraction.
+Processing glycan structures: 100%|██████████| 639/639 [00:06<00:00, 100.13it/s]
+Extraction succeeded. You should be good to go.
+```
+
+If after following these steps you still encounter an error message, feel free to open an issue.
+
+
 ## Glycan Contact Maps
 
 Contact maps reveal the spatial relationships between monosaccharides in a glycan structure. These maps help identify which parts of the glycan are in close proximity, providing insights into potential functional regions.
