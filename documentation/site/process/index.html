@@ -838,28 +838,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../lwca/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    lwca
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../examples.md" class="md-nav__link">
         
   
@@ -1570,7 +1548,7 @@ Returns:
 
 
 <h3 id="glycontact.process.annotation_pipeline" class="doc doc-heading">
-            <code class=" language-python"><span class="n">annotation_pipeline</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">pdb_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class=" language-python"><span class="n">annotation_pipeline</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">pdb_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">my_path</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#glycontact.process.annotation_pipeline" class="headerlink" title="Permanent link">&para;</a></h3>
 
@@ -1583,6 +1561,7 @@ Args:
     pdb_file (str or list, optional): Path(s) to PDB file(s).
     threshold (float): Distance threshold for interactions.
     stereo (str, optional): 'alpha' or 'beta' stereochemistry.
+    my_path (Path, optional): Custom path to PDB folder
 Returns:
     tuple: (dataframes_list, interaction_dicts_list) for all processed PDBs.</p>
 
@@ -1987,7 +1966,7 @@ Returns:
 
 
 <h3 id="glycontact.process.fetch_pdbs" class="doc doc-heading">
-            <code class=" language-python"><span class="n">fetch_pdbs</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class=" language-python"><span class="n">fetch_pdbs</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">my_path</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#glycontact.process.fetch_pdbs" class="headerlink" title="Permanent link">&para;</a></h3>
 
@@ -1998,6 +1977,7 @@ Returns:
 Args:
 glycan (str): glycan sequence, preferably in IUPAC-condensed
 stereo (str, optional): specification of whether reducing end alpha or beta is desired
+my_path (Path, optional): custom path to PDB folder
 Returns:
 List of Paths for GlycoShape and list of get_annotation output tuples for UniLectin</p>
 
@@ -2104,7 +2084,7 @@ Returns:
 
 
 <h3 id="glycontact.process.get_example_pdb" class="doc doc-heading">
-            <code class=" language-python"><span class="n">get_example_pdb</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class=" language-python"><span class="n">get_example_pdb</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">my_path</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#glycontact.process.get_example_pdb" class="headerlink" title="Permanent link">&para;</a></h3>
 
@@ -2116,6 +2096,7 @@ Args:
     glycan (str): IUPAC glycan sequence.
     stereo (str, optional): 'alpha' or 'beta' stereochemistry.
     rng (Random, optional): Random number generator instance.
+    my_path (Path, optional): Custom path to pdb folder
 Returns:
     Path: Path to a randomly selected PDB file.</p>
 
@@ -2250,7 +2231,7 @@ Returns:
 
 
 <h3 id="glycontact.process.get_structure_graph" class="doc doc-heading">
-            <code class=" language-python"><span class="n">get_structure_graph</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">libr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">example_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sasa_flex_path</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class=" language-python"><span class="n">get_structure_graph</span><span class="p">(</span><span class="n">glycan</span><span class="p">,</span> <span class="n">stereo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">libr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">example_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sasa_flex_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">my_path</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#glycontact.process.get_structure_graph" class="headerlink" title="Permanent link">&para;</a></h3>
 
@@ -2264,6 +2245,7 @@ Args:
     libr (dict, optional): Custom library for glycan_to_nxGraph.
     example_path (str, optional): Path to a specific PDB, used for torsion angles and conformations.
     sasa_flex_path (str, optional): Path to a specific PDB, used for SASA/flexibility.
+    my_path(Path, optional): Custom path to PDB folder
 Returns:
     nx.Graph: Fully annotated structure graph with all available properties.</p>
 
