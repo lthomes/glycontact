@@ -5,7 +5,7 @@
 It enables retrieving and processing three-dimensional glycan structures, performing sophisticated conformational analyses, and investigation of structure-function relationships. 
 
 
-Many functionalities within **GlyContact** allow users to produce and retrieve heatmap plots or overlays of glycan sequences. Below are some code examples and their associated outputs. For more specific examples, please have a look at the `Examples` section.
+Many functionalities within **GlyContact** allow users to produce and retrieve heatmap plots or overlays of glycan sequences. Below are some code examples and their associated outputs.
 
 <br>
 
