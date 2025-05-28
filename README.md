@@ -15,7 +15,13 @@ These capabilities help bridge the gap between glycan sequence and function by r
 ## Installation
 
 ```bash
-pip install git+https://github.com/lthomes/glycontact/
+pip install git+https://github.com/lthomes/glycontact.git
+```
+
+An optional `[ml]` install is available for machine learning features:
+
+```bash
+pip install -e git+https://github.com/lthomes/glycontact.git#egg=glycontact[ml]
 ```
 
 ## Glycan Contact Maps

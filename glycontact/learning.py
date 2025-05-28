@@ -20,7 +20,8 @@ try:
 except ImportError:
     raise ImportError(
         "Missing required dependencies for machine learning functionality. "
-        "Please install glycontact with ML support: pip install glycontact[ml]"
+        "Please install glycontact with ML support: pip install glycontact[ml] "
+        "or pip install -e git+https://github.com/lthomes/glycontact.git#egg=glycontact[ml]"
     )
 
 

@@ -7,7 +7,6 @@ The package is organized into the following main modules:
 - `process`: utilities for parsing and analyzing 3D glycan structures
 - `visualize`: functions for plotting contact maps and glycan features
 - `learning`: functions for training and using machine learning models
-- `lwca`: ...
 
 <br>
 
@@ -47,7 +46,7 @@ We recommend using at least the following Python and packages versions to ensure
 If you are using pip, all the required Python packages will be automatically installed with GlyContact.
 
 ```bash
-pip install git+https://github.com/lthomes/glycontact/
+pip install git+https://github.com/lthomes/glycontact.git
 ```
 
 <br>
@@ -55,7 +54,7 @@ pip install git+https://github.com/lthomes/glycontact/
 An optional `[ml]` install is available for machine learning features:
 
 ```bash
-pip install git+https://github.com/lthomes/glycontact/[ml]
+pip install -e git+https://github.com/lthomes/glycontact.git#egg=glycontact[ml]
 ```
 
 <br><br>
