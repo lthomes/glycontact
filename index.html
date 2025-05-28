@@ -281,6 +281,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#getting-started-with-glycontact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting started with GlyContact
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -485,6 +494,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#getting-started-with-glycontact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting started with GlyContact
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -541,7 +559,6 @@
 <li><code>process</code>: utilities for parsing and analyzing 3D glycan structures</li>
 <li><code>visualize</code>: functions for plotting contact maps and glycan features</li>
 <li><code>learning</code>: functions for training and using machine learning models</li>
-<li><code>lwca</code>: ...</li>
 </ul>
 <p><br></p>
 <p>GlyContact provides a comprehensive toolkit that enables researchers to:</p>
@@ -571,12 +588,34 @@
 <h3 id="installation-using-pip"><strong>Installation using pip</strong><a class="headerlink" href="#installation-using-pip" title="Permanent link">&para;</a></h3>
 <hr />
 <p>If you are using pip, all the required Python packages will be automatically installed with GlyContact.</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lthomes/glycontact/
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lthomes/glycontact.git
 </code></pre></div>
 <p><br></p>
 <p>An optional <code>[ml]</code> install is available for machine learning features:</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lthomes/glycontact/<span class="o">[</span>ml<span class="o">]</span>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>git+https://github.com/lthomes/glycontact.git#egg<span class="o">=</span>glycontact<span class="o">[</span>ml<span class="o">]</span>
 </code></pre></div>
+<p><br></p>
+<h3 id="getting-started-with-glycontact"><strong>Getting started with GlyContact</strong><a class="headerlink" href="#getting-started-with-glycontact" title="Permanent link">&para;</a></h3>
+<p>When you try GlyContact for the first time, you may encounter the following <code>FileNotFoundError</code> message: </p>
+<div class="highlight"><pre><span></span><code>You<span class="w"> </span>need<span class="w"> </span>to<span class="w"> </span>equip<span class="w"> </span>GlyContact<span class="w"> </span>with<span class="w"> </span>GlycoShape<span class="w"> </span>structures.<span class="w"> </span>Download<span class="w"> </span>them<span class="w"> </span>from<span class="w"> </span>https://glycoshape.org/downloads<span class="w"> </span>and<span class="w"> </span>place<span class="w"> </span>the<span class="w"> </span>zipped<span class="w"> </span>folder<span class="w"> </span>into<span class="w"> </span>your<span class="w"> </span>GlyContact<span class="w"> </span>folder,<span class="w"> </span><span class="k">then</span><span class="w"> </span>run<span class="w"> </span>it<span class="w"> </span>again.
+</code></pre></div>
+<p>GlyContact requires, at least, a folder with PDB files collected from GlycoShape. Below are the steps you must follow to get them:</p>
+<ol>
+<li>
+<p>Download the GlycoShape.zip file from https://glycoshape.org/downloads</p>
+</li>
+<li>
+<p>If you have installed GlyContact using the <code>pip install</code> command, place the GlycoShape.zip file directly in the GlyContact package folder. The package location is indicated when you first <code>pip install</code> GlyContact. If, instead, you have git cloned GlyContact, place the GlycoShape.zip file in the <code>glycontact/glycontact/</code> folder. </p>
+</li>
+<li>
+<p>Retry the import of the package. If you see the following lines, it works!</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code>Identified<span class="w"> </span>zipped<span class="w"> </span>GlycoShape<span class="w"> </span>structures.<span class="w"> </span>Starting<span class="w"> </span>extraction.
+Processing<span class="w"> </span>glycan<span class="w"> </span>structures:<span class="w"> </span><span class="m">100</span>%<span class="p">|</span>██████████<span class="p">|</span><span class="w"> </span><span class="m">639</span>/639<span class="w"> </span><span class="o">[</span><span class="m">00</span>:06&lt;<span class="m">00</span>:00,<span class="w"> </span><span class="m">100</span>.13it/s<span class="o">]</span>
+Extraction<span class="w"> </span>succeeded.<span class="w"> </span>You<span class="w"> </span>should<span class="w"> </span>be<span class="w"> </span>good<span class="w"> </span>to<span class="w"> </span>go.
+</code></pre></div>
+<p>If after following these steps you still encounter an error message, feel free to open an issue.</p>
 <p><br><br></p>
 <h2 id="contributing"><strong>Contributing</strong><a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <hr />
