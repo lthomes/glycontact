@@ -145,7 +145,20 @@ else:
     else:
       raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
   else:
-    raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")
+    # Check one folder above for GlycoShape.zip
+    parent_zip_path = this_dir.parent / 'GlycoShape.zip'
+    if parent_zip_path.exists():
+      shutil.move(str(parent_zip_path), str(fallback_path))
+      print("Found GlycoShape.zip one folder above. Moved to expected location.")
+      print("Identified zipped GlycoShape structures. Starting extraction.")
+      process_glycoshape(fallback_path)
+      if original_path.exists() and any(original_path.iterdir()):
+        print("Extraction succeeded. You should be good to go.")
+        global_path = original_path
+      else:
+        raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
+    else:
+      raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")
 
 json_path = this_dir / "20250516_GLYCOSHAPE.json"
 with open(json_path) as f:
