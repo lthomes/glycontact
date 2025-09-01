@@ -1285,6 +1285,41 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
   return flex_df if sasa.empty else pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], on='Monosaccharide_id', how='left')
 
 
+def compute_merge_SASA_flexibility_OH(glycan, mode='weighted', stereo=None, my_path=None):
+  """Merges SASA, flexibility, and OH orientation data for a glycan structure."""
+  if stereo is None:
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in ['GlcNAc', 'Glc', 'Xyl']) else 'alpha'
+  merged_df = compute_merge_SASA_flexibility(glycan, mode=mode, stereo=stereo, my_path=my_path)
+  if merged_df.empty:
+    return merged_df
+  try:
+    analysis = get_functional_group_analysis(glycan, stereo=stereo, my_path=my_path)
+    if 'error' not in analysis:
+      oh_groups = analysis['functional_groups']['oh_groups']
+      residue_oh = {}
+      for oh in oh_groups:
+        res_id = oh['residue']
+        if res_id not in residue_oh:
+          residue_oh[res_id] = {'equatorial_oh': 0, 'axial_oh': 0}
+        if oh.get('equatorial', False):
+          residue_oh[res_id]['equatorial_oh'] += 1
+        if oh.get('axial', False):
+          residue_oh[res_id]['axial_oh'] += 1
+      oh_data = []
+      for _, row in merged_df.iterrows():
+        res_id = row['Monosaccharide_id']
+        if res_id in residue_oh:
+          oh_data.append(residue_oh[res_id])
+        else:
+          oh_data.append({'equatorial_oh': 0, 'axial_oh': 0})
+      for key in ['equatorial_oh', 'axial_oh']:
+        merged_df[key] = [d[key] for d in oh_data]
+  except:
+    merged_df['equatorial_oh'] = 0
+    merged_df['axial_oh'] = 0
+  return merged_df
+
+
 def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None) :
   """Creates a NetworkX graph with node-level structural data.
   Args:
@@ -1325,13 +1360,9 @@ def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_
     attrs = {}
     # Add monosaccharide info
     attrs['Monosaccharide'] = row.get('Monosaccharide', node_id)
-    # Add SASA scores if available
-    for col in ['SASA']:
+    for col in ['SASA', 'flexibility', 'equatorial_oh', 'axial_oh']:
       if col in row:
         attrs[col] = row[col]
-    # Add flexibility if available
-    if 'flexibility' in row:
-      attrs['flexibility'] = row['flexibility']
     # Add ring conformation data if available
     if ring_conf_map and node_id in ring_conf_map:
       attrs.update(ring_conf_map[node_id])
@@ -1475,7 +1506,7 @@ def get_structure_graph(glycan, stereo=None, libr=None, example_path=None, sasa_
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   sasa_flex_path = sasa_flex_path if sasa_flex_path else my_path
-  merged = compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=stereo, my_path=sasa_flex_path)
+  merged = compute_merge_SASA_flexibility_OH(glycan, mode='weighted', stereo=stereo, my_path=sasa_flex_path)
   example = example_path if example_path is not None else get_example_pdb(glycan, stereo=stereo, my_path=my_path)
   res, datadict = get_annotation(glycan, example, threshold=3.5)
   ring_conf = get_ring_conformations(res)
@@ -1969,3 +2000,87 @@ def df_to_pdb_content(df):
   # Join lines with newlines
   pdb_content = "\n".join(pdb_lines)
   return pdb_content
+
+
+def extract_functional_groups(df):
+  """Extracts hydroxyl (-OH) and C-H group coordinates and orientations from PDB coordinates."""
+  oh_groups, ch_groups = [], []
+  residues = df['residue_number'].unique()
+  for res_num in residues:
+    residue_df = df[df['residue_number'] == res_num]
+    mono_type = residue_df['IUPAC'].iloc[0] if 'IUPAC' in residue_df.columns else residue_df['monosaccharide'].iloc[0]
+    if any(x in mono_type for x in ['ROH', 'MEX', 'PCX', 'SO3', 'ACX']):
+      continue
+    carbons = residue_df[residue_df['element'] == 'C']
+    for _, carbon in carbons.iterrows():
+      c_coord = carbon[['x', 'y', 'z']].values.astype(float)
+      c_name = carbon['atom_name']
+      o_name = f"O{c_name[1:]}" if len(c_name) > 1 and c_name[1:].isdigit() else f"O{c_name[-1]}"
+      oxygen = residue_df[residue_df['atom_name'] == o_name]
+      if not oxygen.empty:
+        o_coord = oxygen.iloc[0][['x', 'y', 'z']].values.astype(float)
+        oh_vector = o_coord - c_coord
+        oh_length = np.linalg.norm(oh_vector)
+        if oh_length > 0:
+          oh_unit = oh_vector / oh_length
+          oh_groups.append({
+            'residue': res_num,
+            'monosaccharide': mono_type,
+            'carbon_atom': c_name,
+            'oxygen_atom': o_name,
+            'carbon_coord': c_coord,
+            'oxygen_coord': o_coord,
+            'oh_vector': oh_unit,
+            'oh_length': oh_length
+          })
+  return {'oh_groups': oh_groups, 'ch_groups': ch_groups}
+
+
+def calculate_ring_normals(df, functional_groups):
+  """Calculates ring normal vectors to determine OH group orientations relative to ring plane."""
+  for oh_group in functional_groups['oh_groups']:
+    res_num = oh_group['residue']
+    residue_df = df[df['residue_number'] == res_num]
+    mono_type = oh_group['monosaccharide']
+    is_sialic = any(x in mono_type for x in ['Neu', 'Kdn'])
+    is_furanose = 'f' in mono_type.lower()
+    if is_sialic:
+      ring_atoms = ['C2', 'C3', 'C4', 'C5', 'C6', 'O6']
+    elif is_furanose:
+      ring_atoms = ['C1', 'C2', 'C3', 'C4', 'O4']
+    else:
+      ring_atoms = ['C1', 'C2', 'C3', 'C4', 'C5', 'O5']
+    ring_coords = []
+    for atom_name in ring_atoms:
+      atom = residue_df[residue_df['atom_name'] == atom_name]
+      if not atom.empty:
+        ring_coords.append(atom.iloc[0][['x', 'y', 'z']].values.astype(float))
+    if len(ring_coords) >= 3:
+      ring_coords = np.array(ring_coords)
+      v1 = ring_coords[1] - ring_coords[0]
+      v2 = ring_coords[2] - ring_coords[0]
+      normal = np.cross(v1, v2)
+      normal = normal / np.linalg.norm(normal)
+      oh_ring_angle = np.degrees(np.arccos(np.clip(np.dot(oh_group['oh_vector'], normal), -1, 1)))
+      oh_group['oh_ring_angle'] = oh_ring_angle
+      oh_group['equatorial'] = 60 < oh_ring_angle < 120
+      oh_group['axial'] = oh_ring_angle < 30 or oh_ring_angle > 150
+  return functional_groups
+
+
+def get_functional_group_analysis(glycan, stereo=None, pdb_file=None, my_path=None):
+  """Complete pipeline for analyzing functional group spatial arrangements."""
+  if stereo is None:
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in ['GlcNAc', 'Glc', 'Xyl']) else 'alpha'
+  if pdb_file is None:
+    pdb_file = get_example_pdb(glycan, stereo=stereo, my_path=my_path)
+  df, interaction_dict = get_annotation(glycan, pdb_file, threshold=3.5)
+  if len(df) == 0:
+    return {'error': 'No structure data available'}
+  functional_groups = extract_functional_groups(df)
+  functional_groups = calculate_ring_normals(df, functional_groups)
+  return {
+    'functional_groups': functional_groups,
+    'glycan': glycan,
+    'structure_file': pdb_file
+  }
