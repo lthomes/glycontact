@@ -464,6 +464,102 @@ def inter_structure_variability_table(glycan, stereo=None, mode='standard', my_p
 
 
 @rescue_glycans
+def inter_structure_torsion_variability(glycan, stereo=None, mode='standard', my_path=None, fresh=False):
+  """Creates a table showing variability of torsion angles across different PDB structures of the same glycan.
+  Args:
+      glycan (str): Glycan in IUPAC sequence.
+      stereo (str, optional): 'alpha' or 'beta' to select stereochemistry.
+      mode (str): 'standard', 'amplify', or 'weighted' for different calculation methods.
+      my_path (str, optional): Custom path to PDB folders.
+      fresh (bool): If True, fetches fresh cluster frequencies.
+  Returns:
+      pd.DataFrame: Variability table showing how much torsion angles vary across structures.
+  """
+  if stereo is None:
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
+  dfs, int_dicts = annotation_pipeline(glycan, threshold=3.5, stereo=stereo, my_path=my_path)
+  if len(dfs) < 1:
+    return pd.DataFrame()
+  torsion_tables = []
+  for df, int_dict in zip(dfs, int_dicts):
+    if len(df) > 0:
+      torsion_df = get_glycosidic_torsions(df, int_dict)
+      if len(torsion_df) > 0:
+        torsion_tables.append(torsion_df)
+  if len(torsion_tables) < 2:
+    return pd.DataFrame()
+  linkages = torsion_tables[0]['linkage'].tolist()
+  phi_values = np.array([[table[table['linkage'] == link]['phi'].iloc[0] if len(table[table['linkage'] == link]) > 0 else np.nan for link in linkages] for table in torsion_tables])
+  psi_values = np.array([[table[table['linkage'] == link]['psi'].iloc[0] if len(table[table['linkage'] == link]) > 0 else np.nan for link in linkages] for table in torsion_tables])
+  omega_raw = [[table[table['linkage'] == link]['omega'].iloc[0] if len(table[table['linkage'] == link]) > 0 else np.nan for link in linkages] for table in torsion_tables]
+  omega_values = np.array([[val if val is not None else np.nan for val in row] for row in omega_raw])
+  def circular_std(angles):
+    valid_mask = pd.notna(angles) & (angles != None)
+    valid_angles = angles[valid_mask]
+    if len(valid_angles) == 0:
+      return np.nan
+    angles_rad = np.radians(valid_angles)
+    mean_angle = np.arctan2(np.mean(np.sin(angles_rad)), np.mean(np.cos(angles_rad)))
+    circular_var = 1 - np.sqrt(np.mean(np.cos(angles_rad))**2 + np.mean(np.sin(angles_rad))**2)
+    return np.degrees(np.sqrt(circular_var))
+  if mode == 'weighted':
+    weights = np.array(get_all_clusters_frequency(fresh=fresh).get(glycan, [100.0])) / 100
+    weights = [1.0]*len(torsion_tables) if len(weights) != len(torsion_tables) else weights
+    phi_variability = [circular_std(phi_values[:, i]) * np.mean(weights) for i in range(len(linkages))]
+    psi_variability = [circular_std(psi_values[:, i]) * np.mean(weights) for i in range(len(linkages))]
+    omega_variability = [circular_std(omega_values[:, i]) * np.mean(weights) for i in range(len(linkages))]
+  else:
+    phi_variability = [circular_std(phi_values[:, i]) for i in range(len(linkages))]
+    psi_variability = [circular_std(psi_values[:, i]) for i in range(len(linkages))]
+    omega_variability = [circular_std(omega_values[:, i]) for i in range(len(linkages))]
+  if mode == 'amplify':
+    phi_variability = [v**2 if not np.isnan(v) else np.nan for v in phi_variability]
+    psi_variability = [v**2 if not np.isnan(v) else np.nan for v in psi_variability]
+    omega_variability = [v**2 if not np.isnan(v) else np.nan for v in omega_variability]
+  return pd.DataFrame({
+    'linkage': linkages,
+    'phi_variability': phi_variability,
+    'psi_variability': psi_variability,
+    'omega_variability': omega_variability
+  })
+
+
+@rescue_glycans
+def calculate_torsion_flexibility_per_residue(glycan, mode='standard', stereo=None, my_path=None):
+  """Calculates torsion angle flexibility for each monosaccharide based on its participating linkages.
+  Args:
+      glycan (str): IUPAC glycan sequence.
+      mode (str): 'standard', 'amplify', or 'weighted' for calculation method.
+      stereo (str, optional): 'alpha' or 'beta' stereochemistry.
+      my_path (str, optional): Custom path to PDB folders.
+  Returns:
+      dict: Mapping of residue_number to torsion flexibility value.
+  """
+  if stereo is None:
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
+  torsion_var = inter_structure_torsion_variability(glycan, stereo=stereo, mode=mode, my_path=my_path)
+  if len(torsion_var) == 0:
+    return {}
+  residue_torsion_flex = {}
+  for _, row in torsion_var.iterrows():
+    linkage = row['linkage']
+    residue_nums = [int(match.group()) for match in re.finditer(r'(\d+)(?=_)', linkage)]
+    if len(residue_nums) >= 2:
+      donor_res, acceptor_res = residue_nums[0], residue_nums[1]
+      torsion_vals = [row['phi_variability'], row['psi_variability']]
+      if pd.notna(row['omega_variability']):
+        torsion_vals.append(row['omega_variability'])
+      mean_torsion = np.nanmean(torsion_vals)
+      if donor_res not in residue_torsion_flex:
+        residue_torsion_flex[donor_res] = []
+      if acceptor_res not in residue_torsion_flex:
+        residue_torsion_flex[acceptor_res] = []
+      residue_torsion_flex[donor_res].append(mean_torsion)
+      residue_torsion_flex[acceptor_res].append(mean_torsion)
+  return {res: np.nanmean(vals) if vals else np.nan for res, vals in residue_torsion_flex.items()}
+
+
+@rescue_glycans
 def make_correlation_matrix(glycan, stereo=None, my_path=None):
   """Computes a Pearson correlation matrix between residue positions across structures.
   Args:
@@ -1267,6 +1363,7 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
     flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
     monosaccharides = df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
     flex_df = pd.DataFrame({'Monosaccharide_id': df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
+    flex_df['torsion_flexibility'] = np.nan
   else:
     pdbs = fetch_pdbs(glycan, stereo=stereo, my_path=my_path)
     if not isinstance(pdbs[0], tuple):
@@ -1275,6 +1372,8 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
       flex_rmsf = {monosac: value * conversion_factor for monosac, value in flex.items()}
       flex_df = pd.DataFrame(sorted(flex_rmsf.items(), key=lambda x: x[1]), columns=['Monosaccharide_id_Monosaccharide', 'flexibility'])
       flex_df['Monosaccharide_id'] = flex_df['Monosaccharide_id_Monosaccharide'].str.split('_').str[0].astype(int)
+      torsion_flex_dict = calculate_torsion_flexibility_per_residue(glycan, mode=mode, stereo=stereo, my_path=my_path)
+      flex_df['torsion_flexibility'] = flex_df['Monosaccharide_id'].map(torsion_flex_dict)
     else:
       ex_df = pdbs[0][0]
       flexibility = pd.concat([df.groupby('residue_number')['temperature_factor'].mean() for df, inty in pdbs])
@@ -1282,7 +1381,8 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
       flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
       monosaccharides = ex_df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
       flex_df = pd.DataFrame({'Monosaccharide_id': ex_df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
-  return flex_df if sasa.empty else pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility']], on='Monosaccharide_id', how='left')
+      flex_df['torsion_flexibility'] = np.nan
+  return flex_df if sasa.empty else pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility', 'torsion_flexibility']], on='Monosaccharide_id', how='left')
 
 
 def compute_merge_SASA_flexibility_OH(glycan, mode='weighted', stereo=None, my_path=None):
@@ -1296,78 +1396,71 @@ def compute_merge_SASA_flexibility_OH(glycan, mode='weighted', stereo=None, my_p
     analysis = get_functional_group_analysis(glycan, stereo=stereo, my_path=my_path)
     if 'error' not in analysis:
       oh_groups = analysis['functional_groups']['oh_groups']
+      residue_angles = analysis['residue_angles']
       residue_oh = {}
       for oh in oh_groups:
         res_id = oh['residue']
         if res_id not in residue_oh:
-          residue_oh[res_id] = {'equatorial_oh': 0, 'axial_oh': 0}
+          residue_oh[res_id] = {'equatorial_oh': 0, 'axial_oh': 0, 'parallel_oh_pairs': 0, 'perpendicular_oh_pairs': 0}
         if oh.get('equatorial', False):
           residue_oh[res_id]['equatorial_oh'] += 1
         if oh.get('axial', False):
           residue_oh[res_id]['axial_oh'] += 1
+      # Calculate pair counts per residue
+      for res_id, angles in residue_angles.items():
+        if res_id in residue_oh:
+          residue_oh[res_id]['parallel_oh_pairs'] = sum(1 for angle in angles if angle < 30 or angle > 150)
+          residue_oh[res_id]['perpendicular_oh_pairs'] = sum(1 for angle in angles if 60 < angle < 120)
       oh_data = []
       for _, row in merged_df.iterrows():
         res_id = row['Monosaccharide_id']
         if res_id in residue_oh:
           oh_data.append(residue_oh[res_id])
         else:
-          oh_data.append({'equatorial_oh': 0, 'axial_oh': 0})
-      for key in ['equatorial_oh', 'axial_oh']:
+          oh_data.append({'equatorial_oh': 0, 'axial_oh': 0, 'parallel_oh_pairs': 0, 'perpendicular_oh_pairs': 0})
+      for key in ['equatorial_oh', 'axial_oh', 'parallel_oh_pairs', 'perpendicular_oh_pairs']:
         merged_df[key] = [d[key] for d in oh_data]
   except:
     merged_df['equatorial_oh'] = 0
     merged_df['axial_oh'] = 0
+    merged_df['parallel_oh_pairs'] = 0
+    merged_df['perpendicular_oh_pairs'] = 0
   return merged_df
 
 
-def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None) :
-  """Creates a NetworkX graph with node-level structural data.
-  Args:
-      computed_df (pd.DataFrame): DataFrame with computed monosaccharide properties.
-      interaction_dict (dict): Dictionary of glycosidic linkages.
-      ring_conf_df (pd.DataFrame, optional): Ring conformation data.
-      torsion_df (pd.DataFrame, optional): Torsion angle data.
-  Returns:
-      nx.Graph: Graph with nodes/edges representing glycan structure and properties.
-  """
+def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None):
+  """Creates a NetworkX graph with node-level structural data including OH orientations."""
   edges = {(int(k.split('_')[0]), int(v.split('_')[0])) for k, values in interaction_dict.items() for v in values if k.split('_')[0] != v.split('_')[0]}
   G = nx.Graph()
   G.add_edges_from(edges)
-  # Create a mapping of monosaccharide_id to ring conformation data if available
   ring_conf_map = {}
   if ring_conf_df is not None:
     for _, row in ring_conf_df.iterrows():
       ring_conf_map[row['residue']] = {
-            'Q': row['Q'],
-            'theta': row['theta'],
-            'conformation': row['conformation']
-            }
-  # Create a mapping for torsion angles
+        'Q': row['Q'],
+        'theta': row['theta'],
+        'conformation': row['conformation']
+      }
   torsion_map = {}
   if torsion_df is not None:
     for _, row in torsion_df.iterrows():
-      # Extract the residue numbers from the linkage string
-      res_nums = [match.group() for match in re.finditer(r'(\d+)(?=_)', row['linkage'])]  # Gets ["5", "3"] from "5_FUC-3_GAL"
+      res_nums = [match.group() for match in re.finditer(r'(\d+)(?=_)', row['linkage'])]
       edge_key = tuple(sorted([int(res_nums[0]), int(res_nums[1])]))
       torsion_map[edge_key] = {
-            'phi_angle': row['phi'],
-            'psi_angle': row['psi'],
-            'omega_angle': row['omega']
-            }
-  # Add node attributes
+        'phi_angle': row['phi'],
+        'psi_angle': row['psi'],
+        'omega_angle': row['omega']
+      }
   for _, row in computed_df.iterrows():
     node_id = row['Monosaccharide_id']
     attrs = {}
-    # Add monosaccharide info
     attrs['Monosaccharide'] = row.get('Monosaccharide', node_id)
-    for col in ['SASA', 'flexibility', 'equatorial_oh', 'axial_oh']:
+    for col in ['SASA', 'flexibility', 'torsion_flexibility', 'equatorial_oh', 'axial_oh', 'parallel_oh_pairs', 'perpendicular_oh_pairs']:
       if col in row:
         attrs[col] = row[col]
-    # Add ring conformation data if available
     if ring_conf_map and node_id in ring_conf_map:
       attrs.update(ring_conf_map[node_id])
     G.add_node(node_id, **attrs)
-  # Add torsion angles as edge attributes
   for edge_key, torsion_data in torsion_map.items():
     if edge_key in G.edges():
       nx.set_edge_attributes(G, {edge_key: torsion_data})
@@ -2079,8 +2172,21 @@ def get_functional_group_analysis(glycan, stereo=None, pdb_file=None, my_path=No
     return {'error': 'No structure data available'}
   functional_groups = extract_functional_groups(df)
   functional_groups = calculate_ring_normals(df, functional_groups)
+  # Calculate OH pair angles per residue
+  residue_angles = {}
+  for oh in functional_groups['oh_groups']:
+    res_id = oh['residue']
+    if res_id not in residue_angles:
+      residue_angles[res_id] = []
+  for i, oh1 in enumerate(functional_groups['oh_groups']):
+    for j, oh2 in enumerate(functional_groups['oh_groups'][i+1:], i+1):
+      if oh1['residue'] == oh2['residue']:  # Same residue
+        cos_angle = np.dot(oh1['oh_vector'], oh2['oh_vector'])
+        angle = np.degrees(np.arccos(np.clip(cos_angle, -1, 1)))
+        residue_angles[oh1['residue']].append(angle)
   return {
     'functional_groups': functional_groups,
+    'residue_angles': residue_angles,
     'glycan': glycan,
     'structure_file': pdb_file
   }
