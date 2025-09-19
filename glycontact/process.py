@@ -224,6 +224,25 @@ class ComplexDictSerializer(DataFrameSerializer):
 
 unilectin_data = ComplexDictSerializer.deserialize_complex_dict(this_dir / "unilectin_data.json")
 
+def convert_ID(input_ID, output_format = 'iupac'):
+    """ Convert an input glycan from any format into any specified format.
+    Args:
+    input_ID (str): glycan sequence or ID
+    output_format (str): authorized formats are: 'glytoucan', 'ID', 'iupac', 'glycam', 'wurcs', 'glycoct', 'smiles', 'oxford'
+    Returns:
+    String of the converted input glycan in the desired format
+    """
+    for key, entry in glycoshape_mirror.items():
+        if key == input_ID :
+            return entry.get(output_format, None)
+        for format in ['ID', 'iupac', 'glycam', 'wurcs', 'glycoct', 'smiles', 'oxford'] :
+            if entry.get(format) == input_ID:
+                if output_format == 'glytoucan' :
+                    return key 
+                else :
+                    return entry.get(output_format, None)
+    return "Not Found"
+
 
 def fetch_pdbs(glycan, stereo=None, my_path=None):
   """Given a glycan sequence, will query first GlycoShape and then UniLectin for appropriate PDB files.
