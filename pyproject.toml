@@ -31,7 +31,8 @@ dependencies = [
     "glycowork>=1.6",
     "imageio",
     "py3Dmol",
-    "tqdm"
+    "tqdm",
+    "scikit-learn"
 ]
 
 [project.optional-dependencies]
