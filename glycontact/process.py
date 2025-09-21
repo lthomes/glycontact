@@ -62,6 +62,28 @@ NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
 BETA = {'GlcNAc', 'Glc', 'Xyl'}
 C2_PATTERN = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM|0KN'
 
+this_dir = Path(__file__).parent
+
+original_path = this_dir / 'glycans_pdb'
+fallback_path = this_dir / 'GlycoShape.zip'
+json_path = this_dir / "20250516_GLYCOSHAPE.json"
+with open(json_path) as f:
+    glycoshape_mirror = json.load(f)
+
+def gsid_conversion(glycan) :
+    """ Convert an input glycan from glytoucan ID, glycoshape ID or IUPAC format into the iupac format.
+    Args:
+    glycan (str): glycan sequence in iupac format, glytoucan ID or glycoshape ID
+    Returns:
+    String of the converted input glycan in the iupac format
+    """
+    for key, entry in glycoshape_mirror.items():
+        if key == glycan :
+            return entry.get('iupac', None)
+        if entry.get('ID') == glycan :
+            return entry.get('iupac', None)
+    return glycan
+
 def process_glycoshape(fallback_path):
   # Get the directory where the zip file is located  
   base_dir = Path(fallback_path).parent
@@ -82,7 +104,7 @@ def process_glycoshape(fallback_path):
     # Process all zip files within the GlycoShape folder
     for zip_file in tqdm(zip_files, desc="Processing glycan structures"):
       # Get canonical glycan name for folder
-      glycan_name = zip_file.stem
+      glycan_name = gsid_conversion(zip_file.stem)
       try:
         canonical_name = canonicalize_iupac(glycan_name)
       except ValueError:
@@ -127,10 +149,6 @@ def process_glycoshape(fallback_path):
   # Rename GlycoShape folder to glycans_pdb
   glycoshape_dir.rename(base_dir / "glycans_pdb")
 
-this_dir = Path(__file__).parent
-
-original_path = this_dir / 'glycans_pdb'
-fallback_path = this_dir / 'GlycoShape.zip'
 
 # Skip GlycoShape check during testing
 if os.getenv('PYTEST_RUNNING') or os.getenv('SKIP_GLYCOSHAPE_CHECK'):
@@ -163,9 +181,7 @@ else:
     else:
       raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")
 
-json_path = this_dir / "20250516_GLYCOSHAPE.json"
-with open(json_path) as f:
-    glycoshape_mirror = json.load(f)
+
 with open(this_dir / "glycan_graphs.pkl", "rb") as file:
     structure_graphs = pickle.load(file)
 
