@@ -10,6 +10,7 @@ import datetime
 import tempfile
 import tarfile
 from collections import Counter, defaultdict
+from itertools import combinations
 import subprocess
 import json
 import requests
@@ -22,9 +23,11 @@ from tqdm import tqdm
 from pathlib import Path
 from urllib.parse import quote
 from typing import Tuple, Dict, List
+from scipy.stats import chi2
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
+from sklearn.metrics.pairwise import rbf_kernel
 from multiprocessing import Pool
 from glycowork.glycan_data.loader import DataFrameSerializer
 from glycowork.motif.graph import glycan_to_nxGraph, glycan_to_graph
@@ -59,6 +62,28 @@ NON_MONO = {'SO3', 'ACX', 'MEX', 'PCX'}
 BETA = {'GlcNAc', 'Glc', 'Xyl'}
 C2_PATTERN = 'NGC|SIA|NGE|4CD|0CU|1CU|1CD|FRU|5N6|PKM|0KN'
 
+this_dir = Path(__file__).parent
+
+original_path = this_dir / 'glycans_pdb'
+fallback_path = this_dir / 'GlycoShape.zip'
+json_path = this_dir / "20250516_GLYCOSHAPE.json"
+with open(json_path) as f:
+    glycoshape_mirror = json.load(f)
+
+def gsid_conversion(glycan) :
+    """ Convert an input glycan from glytoucan ID, glycoshape ID or IUPAC format into the iupac format.
+    Args:
+    glycan (str): glycan sequence in iupac format, glytoucan ID or glycoshape ID
+    Returns:
+    String of the converted input glycan in the iupac format
+    """
+    for key, entry in glycoshape_mirror.items():
+        if key == glycan :
+            return entry.get('iupac', None)
+        if entry.get('ID') == glycan :
+            return entry.get('iupac', None)
+    return glycan
+
 def process_glycoshape(fallback_path):
   # Get the directory where the zip file is located  
   base_dir = Path(fallback_path).parent
@@ -79,7 +104,7 @@ def process_glycoshape(fallback_path):
     # Process all zip files within the GlycoShape folder
     for zip_file in tqdm(zip_files, desc="Processing glycan structures"):
       # Get canonical glycan name for folder
-      glycan_name = zip_file.stem
+      glycan_name = gsid_conversion(zip_file.stem)
       try:
         canonical_name = canonicalize_iupac(glycan_name)
       except ValueError:
@@ -124,10 +149,6 @@ def process_glycoshape(fallback_path):
   # Rename GlycoShape folder to glycans_pdb
   glycoshape_dir.rename(base_dir / "glycans_pdb")
 
-this_dir = Path(__file__).parent
-
-original_path = this_dir / 'glycans_pdb'
-fallback_path = this_dir / 'GlycoShape.zip'
 
 # Skip GlycoShape check during testing
 if os.getenv('PYTEST_RUNNING') or os.getenv('SKIP_GLYCOSHAPE_CHECK'):
@@ -160,9 +181,7 @@ else:
     else:
       raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")
 
-json_path = this_dir / "20250516_GLYCOSHAPE.json"
-with open(json_path) as f:
-    glycoshape_mirror = json.load(f)
+
 with open(this_dir / "glycan_graphs.pkl", "rb") as file:
     structure_graphs = pickle.load(file)
 
@@ -223,6 +242,25 @@ class ComplexDictSerializer(DataFrameSerializer):
 
 
 unilectin_data = ComplexDictSerializer.deserialize_complex_dict(this_dir / "unilectin_data.json")
+
+def convert_ID(input_ID, output_format = 'iupac'):
+    """ Convert an input glycan from any format into any specified format.
+    Args:
+    input_ID (str): glycan sequence or ID
+    output_format (str): authorized formats are: 'glytoucan', 'ID', 'iupac', 'glycam', 'wurcs', 'glycoct', 'smiles', 'oxford'
+    Returns:
+    String of the converted input glycan in the desired format
+    """
+    for key, entry in glycoshape_mirror.items():
+        if key == input_ID :
+            return entry.get(output_format, None)
+        for format in ['ID', 'iupac', 'glycam', 'wurcs', 'glycoct', 'smiles', 'oxford'] :
+            if entry.get(format) == input_ID:
+                if output_format == 'glytoucan' :
+                    return key 
+                else :
+                    return entry.get(output_format, None)
+    return "Not Found"
 
 
 def fetch_pdbs(glycan, stereo=None, my_path=None):
@@ -2189,4 +2227,98 @@ def get_functional_group_analysis(glycan, stereo=None, pdb_file=None, my_path=No
     'residue_angles': residue_angles,
     'glycan': glycan,
     'structure_file': pdb_file
+  }
+
+
+def calculate_hsic(X, Y, sigma=None):
+  """Calculates Hilbert-Schmidt Independence Criterion between two variables.
+  Args:
+    X (array): First variable (n_samples,)
+    Y (array): Second variable (n_samples,)
+    sigma (float): Kernel bandwidth, uses median heuristic if None
+  Returns:
+    tuple: (HSIC value, p-value from permutation test)
+  """
+  X = np.array(X).reshape(-1, 1)
+  Y = np.array(Y).reshape(-1, 1)
+  n = len(X)
+  if sigma is None:
+    sigma = np.median(np.sqrt(np.sum((X - X.T)**2, axis=1)))
+  K = rbf_kernel(X, gamma=1/(2*sigma**2))
+  L = rbf_kernel(Y, gamma=1/(2*sigma**2))
+  H = np.eye(n) - np.ones((n, n))/n
+  HSIC = np.trace(K @ H @ L @ H) / (n-1)**2
+  # Approximation for p-value using gamma distribution
+  eigenvals_K = np.linalg.eigvals(H @ K @ H)
+  eigenvals_L = np.linalg.eigvals(H @ L @ H)
+  eigenvals_K = eigenvals_K[eigenvals_K > 1e-12]
+  eigenvals_L = eigenvals_L[eigenvals_L > 1e-12]
+  theta = np.mean(eigenvals_K) * np.mean(eigenvals_L)
+  df = 4 * np.mean(eigenvals_K)**2 / np.var(eigenvals_K) if np.var(eigenvals_K) > 0 else 1
+  test_stat = HSIC * (n-1)**2 / theta
+  p_value = 1 - chi2.cdf(test_stat, df)
+  return HSIC, p_value
+
+
+def analyze_torsion_torsion_correlations(glycan, stereo=None, my_path=None):
+  """Analyzes correlations between all pairs of glycosidic torsion angles.
+  Args:
+    glycan (str): IUPAC glycan sequence
+    stereo (str): Stereochemistry specification
+    my_path (str): Custom path to PDB folders
+  Returns:
+    dict: Results containing torsion-torsion correlation matrix
+  """
+  if stereo is None:
+    stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
+  dfs, int_dicts = annotation_pipeline(glycan, threshold=3.5, stereo=stereo, my_path=my_path)
+  if len(dfs) < 2:
+    return {'error': 'Insufficient conformations for correlation analysis'}
+  torsion_data = []
+  for df, int_dict in zip(dfs, int_dicts):
+    if len(df) < 1:
+      continue
+    torsion_df = get_glycosidic_torsions(df, int_dict)
+    if len(torsion_df) > 0:
+      torsion_dict = {}
+      for _, row in torsion_df.iterrows():
+        linkage = row['linkage']
+        torsion_dict[f"{linkage}_phi"] = row['phi']
+        torsion_dict[f"{linkage}_psi"] = row['psi']
+        if row['omega'] is not None:
+          torsion_dict[f"{linkage}_omega"] = row['omega']
+      torsion_data.append(torsion_dict)
+  if len(torsion_data) < 2:
+    return {'error': 'Insufficient torsion data for analysis'}
+  all_torsions = set()
+  for td in torsion_data:
+    all_torsions.update(td.keys())
+  torsion_matrix = pd.DataFrame(index=range(len(torsion_data)), columns=sorted(all_torsions))
+  for i, td in enumerate(torsion_data):
+    for torsion in all_torsions:
+      torsion_matrix.loc[i, torsion] = td.get(torsion, np.nan)
+  torsion_matrix = torsion_matrix.dropna(axis=1).astype(float)
+  significant_correlations = []
+  correlation_matrix = pd.DataFrame(index=torsion_matrix.columns, columns=torsion_matrix.columns)
+  for col1, col2 in combinations(torsion_matrix.columns, 2):
+    vals1 = torsion_matrix[col1].values
+    vals2 = torsion_matrix[col2].values
+    hsic_val, p_val = calculate_hsic(vals1, vals2)
+    correlation_matrix.loc[col1, col2] = hsic_val
+    correlation_matrix.loc[col2, col1] = hsic_val
+    if p_val < 0.05:
+      significant_correlations.append({
+        'torsion1': col1,
+        'torsion2': col2,
+        'hsic': hsic_val,
+        'p_value': p_val
+      })
+  # Fill diagonal
+  for col in torsion_matrix.columns:
+    correlation_matrix.loc[col, col] = 1.0
+  return {
+    'glycan': glycan,
+    'correlation_matrix': correlation_matrix.astype(float),
+    'significant_correlations': significant_correlations,
+    'n_conformations': len(torsion_data)
   }
