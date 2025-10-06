@@ -1138,7 +1138,17 @@ def get_all_clusters_frequency(fresh=False):
       data = response.json()
   else:
     data = glycoshape_mirror
-  return {value["iupac"]: [100.0] if list(value["clusters"].values()) == ['None'] else list(value["clusters"].values()) for key, value in data.items()}
+  output = {}
+  for key, value in data.items():
+    try:
+      if list(value["clusters"].values()) == ['None']:
+        output[value["iupac"]] = [100.0]
+      else:
+        output[value["iupac"]] = list(value["clusters"].values())
+    except:
+      continue
+  return output
+  # return {value["iupac"]: [100.0] if list(value["clusters"].values()) == ['None'] else list(value["clusters"].values()) for key, value in data.items()}
 
 
 def glycan_cluster_pattern(threshold = 70, mute = False, fresh=False) :
