@@ -102,16 +102,20 @@ def graph2pyg(g, weight, iupac, conformer):
     )
 
 
-def create_dataset(fresh: bool = True):
+def create_dataset(fresh: bool = True, splits: list[float] = [0.8, 0.2]):
     """
     Create a dataset of PyTorch Geometric Data objects from the structure graphs of glycans.
 
     Args:
         fresh (bool): If True, fetches the latest data. If False, uses cached data.
+        splits (list): A list of two or three floats representing the train-test split ratios.
     
     Returns:
         tuple: A tuple containing the training and testing datasets.
     """
+    if len(splits) not in {2, 3}:
+        raise ValueError("splits must be a list of two or three floats. More partitions are not supported yet.")
+    
     # Get all clusters and their frequencies.
     data = {}
     for iupac, freqs in get_all_clusters_frequency(fresh=fresh).items():
@@ -152,22 +156,27 @@ def create_dataset(fresh: bool = True):
             "Please install from: https://github.com/kalininalab/DataSAIL"
         )
 
+    names = ["train", "test"] if len(splits) == 2 else ["train", "val", "test"]
     e_splits, _, _ = datasail(
         techniques=["I1e"],
-        names=["train", "test"],
-        splits=[8, 2],
+        names=names,
+        splits=splits,
         e_type="O",
         e_data=[(d, d) for d in data.keys()],
         e_weights={d: len(c) for d, c in data.items()},
     )
 
-    # Create the training and testing datasets.
-    train, test = [], []
+    # Create the training(, validation) and testing datasets.
+    train, val, test = [], [], []
     for name, split in e_splits["I1e"][0].items():
         if split == "train":
             train.extend(data[name])
+        elif split == "val":
+            val.extend(data[name])
         elif split == "test":
             test.extend(data[name])
+    if len(splits) == 3:
+        return train, val, test
     return train, test
 
 
