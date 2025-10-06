@@ -9,7 +9,7 @@ import numpy as np
 import networkx as nx
 from glycowork.glycan_data.loader import HashableDict, lib
 
-from glycontact.process import get_all_clusters_frequency, get_structure_graph
+from glycontact.process import get_all_clusters_frequency, get_structure_graph, global_path
 
 
 # Try to import optional ML dependencies
@@ -40,8 +40,7 @@ def get_all_structure_graphs(glycan, stereo=None, libr=None):
     libr = HashableDict(libr)
     if stereo is None:
         return get_all_structure_graphs(glycan, "alpha", libr) + get_all_structure_graphs(glycan, "beta", libr)
-    glycan_path = Path("glycans_pdb") / glycan
-    matching_pdbs = [glycan_path / pdb for pdb in sorted(os.listdir(glycan_path)) if stereo in pdb]
+    matching_pdbs = [global_path / glycan / pdb for pdb in sorted(os.listdir(global_path / glycan)) if stereo in pdb]
     return [(pdb, get_structure_graph(glycan, libr=libr, example_path=pdb)) for pdb in matching_pdbs]
 
 
