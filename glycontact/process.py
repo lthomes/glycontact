@@ -84,6 +84,53 @@ def gsid_conversion(glycan) :
             return entry.get('iupac', None)
     return glycan
 
+def fetch_and_convert_pdbs(base_output="glycontact/glycans_pdb"):
+    """
+    Fetches all existing GlyToucan IDs from glycoshape.org and downloads their PDB files.
+    Each file is renamed and stored in a folder corresponding to its IUPAC name:
+        glycontact/glycans_pdb/{IUPAC}/{IUPAC}.pdb
+    Args:
+    base_output (str): path where PDB files are stored.
+    """
+    # Step 1: Get all GlyToucan IDs
+    available_url = "https://glycoshape.org/api/available"
+    print(f"Fetching available GlyToucan IDs from {available_url}...")
+    response = requests.get(available_url)
+    response.raise_for_status()
+
+    ids = response.json()
+    print(f"Found {len(ids)} available IDs.")
+
+    base_pdb_url = "https://glycoshape.org/api/pdb/"
+
+    # Step 2: Download each PDB
+    for gly_id in ids:
+        try:
+            pdb_url = f"{base_pdb_url}{gly_id}"
+            pdb_response = requests.get(pdb_url)
+            pdb_response.raise_for_status()
+
+            # Step 3: Convert ID → IUPAC
+            iupac_name = gsid_conversion(gly_id)
+            if not iupac_name:
+                print(f"Could not convert {gly_id}, skipping.")
+                continue
+
+            # Step 4: Sanitize folder/file name
+            safe_name = "".join(c if c.isalnum() or c in "-_()" else "_" for c in iupac_name)
+
+            # Step 5: Create output path
+            output_dir = Path(base_output) / safe_name
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir / f"{safe_name}.pdb"
+            
+            # Step 6: Save file
+            with open(output_path, "wb") as f:
+                f.write(pdb_response.content)
+
+        except Exception as e:
+            print(f"Failed to process {gly_id}: {e}")
+
 def process_glycoshape(fallback_path):
   # Get the directory where the zip file is located  
   base_dir = Path(fallback_path).parent
@@ -173,13 +220,13 @@ else:
       print("Found GlycoShape.zip one folder above. Moved to expected location.")
       print("Identified zipped GlycoShape structures. Starting extraction.")
       process_glycoshape(fallback_path)
-      if original_path.exists() and any(original_path.iterdir()):
+      '''if original_path.exists() and any(original_path.iterdir()):
         print("Extraction succeeded. You should be good to go.")
         global_path = original_path
       else:
         raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
     else:
-      raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")
+      raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")'''
 
 
 with open(this_dir / "glycan_graphs.pkl", "rb") as file:
