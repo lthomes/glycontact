@@ -126,7 +126,7 @@ def fetch_and_convert_pdbs(base_output="glycontact/glycans_pdb"):
 
 
 def process_glycoshape(fallback_path):
-  # Get the directory where the zip file is located  
+  # Get the directory where the zip file is located
   base_dir = Path(fallback_path).parent
   # Create GlycoShape folder first
   glycoshape_dir = base_dir / "GlycoShape"
@@ -258,7 +258,7 @@ class ComplexDictSerializer(DataFrameSerializer):
     # Write to file
     with open(path, 'w') as f:
       json.dump(serialized_dict, f)
-  
+
   @classmethod
   def deserialize_complex_dict(cls, path: str) -> defaultdict:
     """Deserialize a defaultdict of (DataFrame, dict) tuples from a single JSON file"""
@@ -307,7 +307,7 @@ def convert_ID(input_ID, output_format = 'iupac'):
         for format in ['ID', 'iupac', 'glycam', 'wurcs', 'glycoct', 'smiles', 'oxford'] :
             if entry.get(format) == input_ID:
                 if output_format == 'glytoucan' :
-                    return key 
+                    return key
                 else :
                     return entry.get(output_format, None)
     return "Not Found"
@@ -699,7 +699,7 @@ def extract_binary_interactions_from_PDB(coordinates_df):
   Args:
       coordinates_df (pd.DataFrame): Coordinate dataframe from extract_3D_coordinates.
   Returns:
-      pd.DataFrame or list of pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value' 
+      pd.DataFrame or list of pd.DataFrame: DataFrame with columns 'Atom', 'Column', and 'Value'
       showing interactions. Returns a list of DataFrames if multiple chains are present.
   """
   # Check if multiple chains exist
@@ -1065,11 +1065,12 @@ def get_glycan_sequences_from_pdb(pdb_file):
     for child_key, link_pos, anomer in children:
       child_seq = build_sequence(child_key)
       if child_seq:
-        child_parts.append(f"{child_seq}({anomer}1-{link_pos})")
+        anomeric_carbon = 2 if child_seq.endswith(("Neu5Ac", "Neu5Gc", "Kdn")) else 1
+        child_parts.append(f"{child_seq}({anomer}{anomeric_carbon}-{link_pos})")
     if len(child_parts) == 1:
       return f"{child_parts[0]}{mono}"
     elif len(child_parts) > 1:
-      return f"{child_parts[0]}[{'['.join(child_parts[1:])}]{mono}"
+      return f"{child_parts[0]}{''.join(f'[{cp}]' for cp in child_parts[1:])}{mono}"
     return mono
   reducing_ends = [res for res in residue_info.keys() if not any(conn[0] == res for conn in connections)]
   for root in reducing_ends:
@@ -1107,7 +1108,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
   unique_residues = set(df.monosaccharide.unique())
   if len(df) < 1:
     return pd.DataFrame(), {}
-  is_protein_complex = df['record_name'].iloc[0] == 'HETATM' 
+  is_protein_complex = df['record_name'].iloc[0] == 'HETATM'
   # Handle multiple instances of a single monosaccharide in protein complexes
   if is_protein_complex and ')' not in glycan:
     results = []
@@ -1187,7 +1188,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
         )
         if max_residue != expected_residue_count:
           continue
-      result = process_interactions_result(chain_res, threshold, valid_fragments, 
+      result = process_interactions_result(chain_res, threshold, valid_fragments,
                                          n_glycan, furanose_end, d_end, is_protein_complex, glycan, df[df.chain_id==chain_ids[i]])
       if len(result[0]) > 0:  # If validation succeeded
         return result
@@ -1195,7 +1196,7 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
     return pd.DataFrame(), {}
   else:
     # Original single-chain behavior
-    return process_interactions_result(res, threshold, valid_fragments, 
+    return process_interactions_result(res, threshold, valid_fragments,
                                      n_glycan, furanose_end, d_end, is_protein_complex, glycan, df)
 
 
@@ -1388,8 +1389,8 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         os.unlink(temp_path)  # Always clean up the temporary file
     if is_single_pdb:
       glycan_residues = set(df['residue_number'])
-      atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq in glycan_residues or 
-                     (atom.residue.name in NON_MONO and atom.residue.resSeq in [r.resSeq for r in structure.topology.residues 
+      atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq in glycan_residues or
+                     (atom.residue.name in NON_MONO and atom.residue.resSeq in [r.resSeq for r in structure.topology.residues
                        if r.resSeq in glycan_residues])]
       structure = structure.atom_slice(atom_indices)
     sasa = md.shrake_rupley(structure, mode='atom')
@@ -2031,6 +2032,8 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
   Returns:
     pd.DataFrame: Phi/psi angles for each linkage
   """
+  if isinstance(interaction_dict, tuple):
+      return pd.DataFrame()
   results = []
   for donor_key, linkage_info in interaction_dict.items():
     if not any('_(' in link for link in linkage_info):
