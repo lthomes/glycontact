@@ -70,6 +70,7 @@ json_path = this_dir / "20250516_GLYCOSHAPE.json"
 with open(json_path) as f:
     glycoshape_mirror = json.load(f)
 
+
 def gsid_conversion(glycan) :
     """ Convert an input glycan from glytoucan ID, glycoshape ID or IUPAC format into the iupac format.
     Args:
@@ -84,9 +85,9 @@ def gsid_conversion(glycan) :
             return entry.get('iupac', None)
     return glycan
 
+
 def fetch_and_convert_pdbs(base_output="glycontact/glycans_pdb"):
-    """
-    Fetches all existing GlyToucan IDs from glycoshape.org and downloads their PDB files.
+    """Fetches all existing GlyToucan IDs from glycoshape.org and downloads their PDB files.
     Each file is renamed and stored in a folder corresponding to its IUPAC name:
         glycontact/glycans_pdb/{IUPAC}/{IUPAC}.pdb
     Args:
@@ -97,39 +98,32 @@ def fetch_and_convert_pdbs(base_output="glycontact/glycans_pdb"):
     print(f"Fetching available GlyToucan IDs from {available_url}...")
     response = requests.get(available_url)
     response.raise_for_status()
-
     ids = response.json()
     print(f"Found {len(ids)} available IDs.")
-
     base_pdb_url = "https://glycoshape.org/api/pdb/"
-
     # Step 2: Download each PDB
     for gly_id in ids:
         try:
             pdb_url = f"{base_pdb_url}{gly_id}"
             pdb_response = requests.get(pdb_url)
             pdb_response.raise_for_status()
-
             # Step 3: Convert ID → IUPAC
             iupac_name = gsid_conversion(gly_id)
             if not iupac_name:
                 print(f"Could not convert {gly_id}, skipping.")
                 continue
-
             # Step 4: Sanitize folder/file name
             safe_name = "".join(c if c.isalnum() or c in "-_()" else "_" for c in iupac_name)
-
             # Step 5: Create output path
             output_dir = Path(base_output) / safe_name
             output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / f"{safe_name}.pdb"
-            
             # Step 6: Save file
             with open(output_path, "wb") as f:
                 f.write(pdb_response.content)
-
         except Exception as e:
             print(f"Failed to process {gly_id}: {e}")
+
 
 def process_glycoshape(fallback_path):
   # Get the directory where the zip file is located  
@@ -197,37 +191,46 @@ def process_glycoshape(fallback_path):
   glycoshape_dir.rename(base_dir / "glycans_pdb")
 
 
-# Skip GlycoShape check during testing
-if os.getenv('PYTEST_RUNNING') or os.getenv('SKIP_GLYCOSHAPE_CHECK'):
-  global_path = Path('dummy_glycoshape_path')
-else:
-  # Try original path first, then fallback path
+def get_global_path():
   if original_path.exists() and any(original_path.iterdir()):
-    global_path = original_path
+    return original_path
   elif fallback_path.exists():
     print("Identified zipped GlycoShape structures. Starting extraction.")
     process_glycoshape(fallback_path)
     if original_path.exists() and any(original_path.iterdir()):
       print("Extraction succeeded. You should be good to go.")
-      global_path = original_path
+      return original_path
     else:
       raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
   else:
-    # Check one folder above for GlycoShape.zip
     parent_zip_path = this_dir.parent / 'GlycoShape.zip'
     if parent_zip_path.exists():
       shutil.move(str(parent_zip_path), str(fallback_path))
       print("Found GlycoShape.zip one folder above. Moved to expected location.")
       print("Identified zipped GlycoShape structures. Starting extraction.")
       process_glycoshape(fallback_path)
-      '''if original_path.exists() and any(original_path.iterdir()):
+      if original_path.exists() and any(original_path.iterdir()):
         print("Extraction succeeded. You should be good to go.")
-        global_path = original_path
+        return original_path
       else:
         raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
     else:
-      raise FileNotFoundError("You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.")'''
+      print("No GlycoShape structures found locally. Attempting to download from API...")
+      try:
+        fetch_and_convert_pdbs(base_output=str(original_path))
+        if original_path.exists() and any(original_path.iterdir()):
+          print("Download from API succeeded. You should be good to go.")
+          return original_path
+        else:
+          raise FileNotFoundError("Download from API completed but no structures were saved.")
+      except Exception as e:
+        raise FileNotFoundError(f"Could not obtain GlycoShape structures. Download them from https://glycoshape.org/downloads or ensure API access. Error: {e}")
 
+
+if os.getenv('PYTEST_RUNNING') or os.getenv('SKIP_GLYCOSHAPE_CHECK'):
+  global_path = Path('dummy_glycoshape_path')
+else:
+  global_path = None
 
 with open(this_dir / "glycan_graphs.pkl", "rb") as file:
     structure_graphs = pickle.load(file)
@@ -321,7 +324,7 @@ def fetch_pdbs(glycan, stereo=None, my_path=None):
   """
   if stereo is None:
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
-  glycan_path = global_path / glycan if my_path is None else my_path
+  glycan_path = (get_global_path() if global_path is None else global_path) / glycan if my_path is None else my_path
   if not os.path.exists(glycan_path):
     if glycan in unilectin_data:
       matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
@@ -986,6 +989,94 @@ def process_interactions_result(res, threshold, valid_fragments, n_glycan, furan
       check_reconstructed_interactions(interaction_dict)):
     return annotate_pdb_data(df, mapping_dict), interaction_dict
   return pd.DataFrame(), {}
+
+
+def get_glycan_sequences_from_pdb(pdb_file):
+  """Extracts glycan sequences from a PDB file containing protein and glycan.
+  Args:
+    pdb_file (str): Path to the PDB file
+  Returns:
+    list: List of IUPAC glycan sequences found in the PDB
+  """
+  df = extract_3D_coordinates(pdb_file)
+  if len(df) == 0:
+    return []
+  glycan_residues = df[df['monosaccharide'].isin(map_dict.keys())].copy()
+  if len(glycan_residues) == 0:
+    return []
+  residue_info = {}
+  for _, row in glycan_residues.iterrows():
+    res_key = (row['chain_id'], row['residue_number'])
+    if res_key not in residue_info:
+      residue_info[res_key] = {'mono': row['monosaccharide'], 'atoms': {}}
+    residue_info[res_key]['atoms'][row['atom_name']] = np.array([row['x'], row['y'], row['z']])
+  connections = []
+  for res1_key, res1_data in residue_info.items():
+    mono_code = res1_data['mono']
+    mono_name = map_dict.get(mono_code, '').split('(')[0]
+    is_c2_linked = bool(re.search(C2_PATTERN, mono_code))
+    link_carbon = 'C2' if is_c2_linked else 'C1'
+    if link_carbon not in res1_data['atoms']:
+      continue
+    c_coord = res1_data['atoms'][link_carbon]
+    is_l_sugar = mono_name.startswith('L') or 'Fuc' in mono_name or 'Rha' in mono_name
+    for res2_key, res2_data in residue_info.items():
+      if res1_key == res2_key:
+        continue
+      for atom_name, coord in res2_data['atoms'].items():
+        if atom_name.startswith('O') and atom_name[1:].isdigit():
+          dist = np.linalg.norm(c_coord - coord)
+          if dist < 1.6:
+            linkage_pos = atom_name[1:]
+            if is_c2_linked:
+              o_ref = res1_data['atoms'].get('O6')
+              c_ref = res1_data['atoms'].get('C3')
+            else:
+              o_ref = res1_data['atoms'].get('O5')
+              c_ref = res1_data['atoms'].get('C2')
+            if o_ref is not None and c_ref is not None:
+              v1 = o_ref - c_coord
+              v2 = c_ref - c_coord
+              v3 = coord - c_coord
+              cross = np.cross(v1, v2)
+              is_alpha = np.dot(cross, v3) < 0
+              if is_l_sugar:
+                is_alpha = not is_alpha
+              anomeric = 'a' if is_alpha else 'b'
+            else:
+              anomeric = 'a'
+            connections.append((res1_key, res2_key, linkage_pos, anomeric))
+            break
+  graph = {res: [] for res in residue_info.keys()}
+  for donor, acceptor, link_pos, anomer in connections:
+    graph[acceptor].append((donor, link_pos, anomer))
+  sequences = []
+  visited = set()
+  def build_sequence(res_key):
+    if res_key in visited:
+      return None
+    visited.add(res_key)
+    mono_code = residue_info[res_key]['mono']
+    mono = map_dict.get(mono_code, '').split('(')[0]
+    children = graph[res_key]
+    if not children:
+      return mono
+    child_parts = []
+    for child_key, link_pos, anomer in children:
+      child_seq = build_sequence(child_key)
+      if child_seq:
+        child_parts.append(f"{child_seq}({anomer}1-{link_pos})")
+    if len(child_parts) == 1:
+      return f"{child_parts[0]}{mono}"
+    elif len(child_parts) > 1:
+      return f"{child_parts[0]}[{'['.join(child_parts[1:])}]{mono}"
+    return mono
+  reducing_ends = [res for res in residue_info.keys() if not any(conn[0] == res for conn in connections)]
+  for root in reducing_ends:
+    seq = build_sequence(root)
+    if seq:
+      sequences.append(seq)
+  return list(set(sequences))
 
 
 def get_annotation(glycan, pdb_file, threshold=3.5):
@@ -1830,11 +1921,11 @@ def superimpose_glycans(ref_glycan, mobile_glycan, ref_residues=None, mobile_res
         - mobile_conformer: PDB path of mobile conformer
   """
   if isinstance(ref_glycan, str) and '.' not in ref_glycan:
-    ref_conformers = list((global_path / canonicalize_iupac(ref_glycan)).glob('*.pdb'))
+    ref_conformers = list(((get_global_path() if global_path is None else global_path) / canonicalize_iupac(ref_glycan)).glob('*.pdb'))
   else:
     ref_conformers = [ref_glycan]
   if isinstance(mobile_glycan, str) and '.' not in mobile_glycan:
-    mobile_conformers = list((global_path / canonicalize_iupac(mobile_glycan)).glob('*.pdb'))
+    mobile_conformers = list(((get_global_path() if global_path is None else global_path) / canonicalize_iupac(mobile_glycan)).glob('*.pdb'))
   else:
     mobile_conformers = [mobile_glycan]
   best_rmsd = float('inf')
@@ -1864,7 +1955,7 @@ def _process_single_glycan(args):
   glycan, query_coords, rmsd_cutoff, fast = args
   best_rmsd = float('inf')
   best_structure = None
-  pdb_files = list((global_path / glycan).glob('*.pdb'))
+  pdb_files = list(((get_global_path() if global_path is None else global_path) / glycan).glob('*.pdb'))
   for pdb_file in pdb_files:
     try:
       coords, _ = extract_glycan_coords(pdb_file)
@@ -1894,7 +1985,7 @@ def get_similar_glycans(query_glycan, pdb_path=None, glycan_database=None, rmsd_
   """
   query_glycan = canonicalize_iupac(query_glycan)
   glycans = get_glycoshape_IUPAC() if glycan_database is None else glycan_database
-  glycans = [g for g in glycans if (global_path / g).exists() and any((global_path / g).iterdir()) and g!=query_glycan]
+  glycans = [g for g in glycans if ((get_global_path() if global_path is None else global_path) / g).exists() and any(((get_global_path() if global_path is None else global_path) / g).iterdir()) and g!=query_glycan]
   # Get query coordinates once
   query_glycan_path = get_example_pdb(query_glycan) if pdb_path is None else pdb_path
   query_coords, _ = extract_glycan_coords(query_glycan_path) if pdb_path!='unilectin' else extract_glycan_coords(unilectin_data[query_glycan][unilectin_id][0])
