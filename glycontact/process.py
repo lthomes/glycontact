@@ -2469,12 +2469,12 @@ def analyze_torsion_torsion_correlations(glycan, stereo=None, my_path=None):
   }
 
 
-def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0, all_atoms=True, filepath=''):
+def get_binding_pocket(glycan, pdb_path, binding_monosaccharide=None, cutoff=4.0, all_atoms=True, filepath=''):
   """Extract amino acid residues within a cutoff distance from a specific monosaccharide in a glycan.
   Args:
     glycan (str): IUPAC glycan sequence
     pdb_path (str): Path to PDB file containing the glycan structure
-    binding_monosaccharide (str): Monosaccharide identifier within the glycan (e.g., 'NAG', 'MAN', 'BMA')
+    binding_monosaccharide (str): Monosaccharide identifier within the glycan (e.g., 'NAG', 'MAN', 'BMA'); if None, uses entire glycan
     cutoff (float): Distance cutoff in Angstroms (default 4.0)
     all_atoms (bool): If True, return all atoms within cutoff; if False, return only closest atom per residue
     filepath (str): filepath to save extracted binding pocket as PDB file, if desired; Optional
@@ -2484,30 +2484,35 @@ def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0, all
   glycan_df, interaction_dict = get_annotation(glycan, pdb_path, threshold=3.5)
   if len(glycan_df) == 0:
     return pd.DataFrame()
-  target_residues = glycan_df[glycan_df['monosaccharide'] == binding_monosaccharide]
-  if len(target_residues) == 0:
-    mapped_name = None
-    for pdb_code, iupac in map_dict.items():
-      if binding_monosaccharide in iupac or iupac.startswith(binding_monosaccharide):
-        potential_residues = glycan_df[glycan_df['monosaccharide'] == pdb_code]
-        if len(potential_residues) > 0:
-          target_residues = potential_residues
-          break
-  if len(target_residues) == 0:
-    return pd.DataFrame()
-  target_residue_number = target_residues['residue_number'].iloc[0]
-  target_chain = target_residues['chain_id'].iloc[0]
+  if binding_monosaccharide is None:
+    target_residues = glycan_df
+  else:
+    target_residues = glycan_df[glycan_df['monosaccharide'] == binding_monosaccharide]
+    if len(target_residues) == 0:
+      mapped_name = None
+      for pdb_code, iupac in map_dict.items():
+        if binding_monosaccharide in iupac or iupac.startswith(binding_monosaccharide):
+          potential_residues = glycan_df[glycan_df['monosaccharide'] == pdb_code]
+          if len(potential_residues) > 0:
+            target_residues = potential_residues
+            break
+    if len(target_residues) == 0:
+      return pd.DataFrame()
   traj = md.load(pdb_path)
   topology = traj.topology
-  target_residue_obj = None
-  for res in topology.residues:
-    if res.resSeq == target_residue_number and res.chain.chain_id == target_chain:
-      target_residue_obj = res
-      break
-  if target_residue_obj is None:
+  target_atom_indices = []
+  target_atoms = []
+  for _, row in target_residues.iterrows():
+    target_chain = row['chain_id']
+    target_residue_number = row['residue_number']
+    for res in topology.residues:
+      if res.resSeq == target_residue_number and res.chain.chain_id == target_chain:
+        for atom in res.atoms:
+          target_atom_indices.append(atom.index)
+          target_atoms.append(atom)
+        break
+  if len(target_atom_indices) == 0:
     return pd.DataFrame()
-  target_atoms = [atom for atom in target_residue_obj.atoms]
-  target_atom_indices = [atom.index for atom in target_atoms]
   target_coords = traj.xyz[0, target_atom_indices, :] * 10
   protein_residues = [res for res in topology.residues if res.is_protein]
   binding_pocket_data = []
@@ -2521,26 +2526,27 @@ def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0, all
         min_distance_to_atom = np.min(distances[:, atom_idx])
         if min_distance_to_atom <= cutoff:
           target_atom_idx = np.argmin(distances[:, atom_idx])
+          target_atom = target_atoms[target_atom_idx]
           binding_pocket_data.append({
             'chain': residue.chain.chain_id,
             'resSeq': residue.resSeq,
             'resName': residue.name,
             'atom_name': atom.name,
-            'target_atom': target_atoms[target_atom_idx].name,
+            'target_atom': f"{target_atom.residue.name}{target_atom.residue.resSeq}_{target_atom.name}",
             'distance_min': min_distance_to_atom
           })
     else:
       min_distance = np.min(distances)
       if min_distance <= cutoff:
         min_dist_idx = np.unravel_index(np.argmin(distances), distances.shape)
-        closest_target_atom = target_atoms[min_dist_idx[0]]
+        target_atom = target_atoms[min_dist_idx[0]]
         closest_residue_atom = residue_atoms[min_dist_idx[1]]
         binding_pocket_data.append({
           'chain': residue.chain.chain_id,
           'resSeq': residue.resSeq,
           'resName': residue.name,
           'atom_name': closest_residue_atom.name,
-          'target_atom': closest_target_atom.name,
+          'target_atom': f"{target_atom.residue.name}{target_atom.residue.resSeq}_{target_atom.name}",
           'distance_min': min_distance
         })
   result_df = pd.DataFrame(binding_pocket_data)
