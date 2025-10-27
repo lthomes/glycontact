@@ -2467,3 +2467,52 @@ def analyze_torsion_torsion_correlations(glycan, stereo=None, my_path=None):
     'significant_correlations': significant_correlations,
     'n_conformations': len(torsion_data)
   }
+
+
+def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0):
+  """Extract amino acid residues within a cutoff distance from a specific monosaccharide in a glycan.
+  Args:
+    glycan (str): IUPAC glycan sequence
+    pdb_path (str): Path to PDB file containing the glycan structure
+    binding_monosaccharide (str): Monosaccharide identifier to measure distances from (e.g., 'NAG', 'MAN', 'BMA')
+    cutoff (float): Distance cutoff in Angstroms (default 4.0)
+  Returns:
+    pd.DataFrame: DataFrame with columns for residue info (chain, resSeq, resName, atom_name, distance_min)
+  """
+  traj = md.load(pdb_path)
+  topology = traj.topology
+  glycan_residues = [res for res in topology.residues if res.name in ['NAG', 'NDG', 'MAN', 'BMA', 'FUC', 'FUL', 'GAL', 'GLA', 'GLC', 'BGC', 'SIA', 'NGC', 'XYP', 'XYS', 'A2G', 'NGA']]
+  target_residue = None
+  for res in glycan_residues:
+    if res.name == binding_monosaccharide or (binding_monosaccharide in res.name):
+      target_residue = res
+      break
+  if target_residue is None:
+    return pd.DataFrame()
+  target_atoms = [atom for atom in target_residue.atoms]
+  target_atom_indices = [atom.index for atom in target_atoms]
+  target_coords = traj.xyz[0, target_atom_indices, :] * 10
+  protein_residues = [res for res in topology.residues if res.is_protein]
+  binding_pocket_data = []
+  for residue in protein_residues:
+    residue_atoms = [atom for atom in residue.atoms]
+    residue_atom_indices = [atom.index for atom in residue_atoms]
+    residue_coords = traj.xyz[0, residue_atom_indices, :] * 10
+    distances = cdist(target_coords, residue_coords)
+    min_distance = np.min(distances)
+    if min_distance <= cutoff:
+      min_dist_idx = np.unravel_index(np.argmin(distances), distances.shape)
+      closest_target_atom = target_atoms[min_dist_idx[0]]
+      closest_residue_atom = residue_atoms[min_dist_idx[1]]
+      binding_pocket_data.append({
+        'chain': residue.chain.chain_id,
+        'resSeq': residue.resSeq,
+        'resName': residue.name,
+        'atom_name': closest_residue_atom.name,
+        'target_atom': closest_target_atom.name,
+        'distance_min': min_distance
+      })
+  result_df = pd.DataFrame(binding_pocket_data)
+  if len(result_df) > 0:
+    result_df = result_df.sort_values('distance_min').reset_index(drop=True)
+  return result_df
