@@ -1389,9 +1389,13 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
         os.unlink(temp_path)  # Always clean up the temporary file
     if is_single_pdb:
       glycan_residues = set(df['residue_number'])
-      atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq in glycan_residues or
-                     (atom.residue.name in NON_MONO and atom.residue.resSeq in [r.resSeq for r in structure.topology.residues
-                       if r.resSeq in glycan_residues])]
+      glycan_chains = set(df['chain_id']) if 'chain_id' in df.columns else {None}
+      atom_indices = []
+      for atom in structure.topology.atoms:
+        res = atom.residue
+        chain_match = atom.residue.chain.chain_id in glycan_chains if glycan_chains != {None} else True
+        if chain_match and (res.resSeq in glycan_residues or (res.name in NON_MONO and any(r.resSeq in glycan_residues for r in structure.topology.residues if r.chain == res.chain))):
+          atom_indices.append(atom.index)
       structure = structure.atom_slice(atom_indices)
     sasa = md.shrake_rupley(structure, mode='atom')
     # Group SASA by residue
@@ -2084,7 +2088,7 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
         'linkage': f"{donor_key}-{acceptor_id}",
         'phi': round(calculate_torsion_angle(coords_phi), 2),
         'psi': round(calculate_torsion_angle(coords_psi), 2),
-        'omega': round(calculate_torsion_angle(coords_omega), 2) if coords_omega else None,
+        'omega': round(calculate_torsion_angle(coords_omega), 2) if coords_omega else np.nan,
         'anomeric_form': aform,
         'position': pos
         })
