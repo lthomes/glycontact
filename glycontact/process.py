@@ -2469,28 +2469,44 @@ def analyze_torsion_torsion_correlations(glycan, stereo=None, my_path=None):
   }
 
 
-def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0, all_atoms=True):
+def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0, all_atoms=True, filepath=''):
   """Extract amino acid residues within a cutoff distance from a specific monosaccharide in a glycan.
   Args:
     glycan (str): IUPAC glycan sequence
     pdb_path (str): Path to PDB file containing the glycan structure
-    binding_monosaccharide (str): Monosaccharide identifier to measure distances from (e.g., 'NAG', 'MAN', 'BMA')
+    binding_monosaccharide (str): Monosaccharide identifier within the glycan (e.g., 'NAG', 'MAN', 'BMA')
     cutoff (float): Distance cutoff in Angstroms (default 4.0)
-    all_atoms (bool): If True, return all atoms within cutoff; if False, return only closest atom per residue (default True)
+    all_atoms (bool): If True, return all atoms within cutoff; if False, return only closest atom per residue
+    filepath (str): filepath to save extracted binding pocket as PDB file, if desired; Optional
   Returns:
     pd.DataFrame: DataFrame with columns for residue info (chain, resSeq, resName, atom_name, distance_min)
   """
+  glycan_df, interaction_dict = get_annotation(glycan, pdb_path, threshold=3.5)
+  if len(glycan_df) == 0:
+    return pd.DataFrame()
+  target_residues = glycan_df[glycan_df['monosaccharide'] == binding_monosaccharide]
+  if len(target_residues) == 0:
+    mapped_name = None
+    for pdb_code, iupac in map_dict.items():
+      if binding_monosaccharide in iupac or iupac.startswith(binding_monosaccharide):
+        potential_residues = glycan_df[glycan_df['monosaccharide'] == pdb_code]
+        if len(potential_residues) > 0:
+          target_residues = potential_residues
+          break
+  if len(target_residues) == 0:
+    return pd.DataFrame()
+  target_residue_number = target_residues['residue_number'].iloc[0]
+  target_chain = target_residues['chain_id'].iloc[0]
   traj = md.load(pdb_path)
   topology = traj.topology
-  glycan_residues = [res for res in topology.residues if res.name in ['NAG', 'NDG', 'MAN', 'BMA', 'FUC', 'FUL', 'GAL', 'GLA', 'GLC', 'BGC', 'SIA', 'NGC', 'XYP', 'XYS', 'A2G', 'NGA']]
-  target_residue = None
-  for res in glycan_residues:
-    if res.name == binding_monosaccharide or (binding_monosaccharide in res.name):
-      target_residue = res
+  target_residue_obj = None
+  for res in topology.residues:
+    if res.resSeq == target_residue_number and res.chain.chain_id == target_chain:
+      target_residue_obj = res
       break
-  if target_residue is None:
+  if target_residue_obj is None:
     return pd.DataFrame()
-  target_atoms = [atom for atom in target_residue.atoms]
+  target_atoms = [atom for atom in target_residue_obj.atoms]
   target_atom_indices = [atom.index for atom in target_atoms]
   target_coords = traj.xyz[0, target_atom_indices, :] * 10
   protein_residues = [res for res in topology.residues if res.is_protein]
@@ -2530,4 +2546,42 @@ def get_binding_pocket(glycan, pdb_path, binding_monosaccharide, cutoff=4.0, all
   result_df = pd.DataFrame(binding_pocket_data)
   if len(result_df) > 0:
     result_df = result_df.sort_values('distance_min').reset_index(drop=True)
+  if filepath:
+    save_binding_pocket_pdb(result_df, pdb_path, glycan, filepath)
   return result_df
+
+
+def save_binding_pocket_pdb(result_df, pdb_path, glycan, output_path):
+  """Create a new PDB file containing only the binding pocket residues and the specified glycan.
+  Args:
+    result_df (pd.DataFrame): DataFrame from get_binding_pocket containing binding pocket residues
+    pdb_path (str): Path to original PDB file
+    glycan (str): IUPAC glycan sequence
+    output_path (str): Path where the new PDB file should be saved
+  Returns:
+    str: Path to the saved PDB file
+  """
+  glycan_df, interaction_dict = get_annotation(glycan, pdb_path, threshold=3.5)
+  if len(glycan_df) == 0:
+    raise ValueError(f"Could not find glycan {glycan} in PDB file")
+  traj = md.load(pdb_path)
+  topology = traj.topology
+  atom_indices_to_keep = []
+  glycan_residues = set((row['chain_id'], row['residue_number']) for _, row in glycan_df.iterrows())
+  for residue in topology.residues:
+    if (residue.chain.chain_id, residue.resSeq) in glycan_residues:
+      for atom in residue.atoms:
+        atom_indices_to_keep.append(atom.index)
+  pocket_residues = set()
+  for _, row in result_df.iterrows():
+    pocket_residues.add((row['chain'], row['resSeq'], row['resName']))
+  for residue in topology.residues:
+    if residue.is_protein:
+      res_tuple = (residue.chain.chain_id, residue.resSeq, residue.name)
+      if res_tuple in pocket_residues:
+        for atom in residue.atoms:
+          atom_indices_to_keep.append(atom.index)
+  atom_indices_to_keep = sorted(set(atom_indices_to_keep))
+  subset_traj = traj.atom_slice(atom_indices_to_keep)
+  subset_traj.save_pdb(output_path)
+  return output_path
