@@ -1674,7 +1674,7 @@ def compute_merge_SASA_flexibility_OH(glycan, mode='weighted', stereo=None, my_p
 
 def map_data_to_graph(computed_df, interaction_dict, ring_conf_df=None, torsion_df=None):
   """Creates a NetworkX graph with node-level structural data including OH orientations."""
-  edges = {(int(k.split('_')[0]), int(v.split('_')[0])) for k, values in interaction_dict.items() for v in values if k.split('_')[0] != v.split('_')[0]}
+  edges = {(int(k.split('_')[0]), int(v.split('_')[0])) for k, values in interaction_dict.items() if isinstance(values, (list, tuple, set)) for v in values if k.split('_')[0] != v.split('_')[0]}
   G = nx.Graph()
   G.add_edges_from(edges)
   ring_conf_map = {}
