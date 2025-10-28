@@ -1190,14 +1190,21 @@ def get_annotation(glycan, pdb_file, threshold=3.5):
           continue
       result = process_interactions_result(chain_res, threshold, valid_fragments,
                                          n_glycan, furanose_end, d_end, is_protein_complex, glycan, df[df.chain_id==chain_ids[i]])
-      if len(result[0]) > 0:  # If validation succeeded
+      result = process_interactions_result(chain_res, threshold, valid_fragments,
+                                         n_glycan, furanose_end, d_end, is_protein_complex, glycan, df[df.chain_id==chain_ids[i]])
+      if len(result[0]) > 0:
+        if len(result[1]) > 0:
+          result[1]['__pdb_path__'] = pdb_file
         return result
     # If no chain validates successfully
     return pd.DataFrame(), {}
   else:
     # Original single-chain behavior
-    return process_interactions_result(res, threshold, valid_fragments,
+    result = process_interactions_result(res, threshold, valid_fragments,
                                      n_glycan, furanose_end, d_end, is_protein_complex, glycan, df)
+    if len(result[1]) > 0:
+      result[1]['__pdb_path__'] = pdb_file
+    return result
 
 
 @rescue_glycans
@@ -1539,7 +1546,56 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   sasa = get_sasa_table(glycan, stereo=stereo, my_path=my_path)
   if my_path is not None and (isinstance(my_path, str) and "." in my_path) or (isinstance(my_path, Path)):
-    df, _ = get_annotation(glycan, my_path)
+    df, interaction_dict = get_annotation(glycan, my_path)
+    pdb_path = interaction_dict.get('__pdb_path__')
+    linker_res_num = None
+    linker_res_name = None
+    if pdb_path is not None:
+      glycan_residues = df[df['monosaccharide'].isin(set(map_dict.keys()))]
+      if len(glycan_residues) > 0:
+        min_glycan_res = glycan_residues['residue_number'].min()
+        first_glycan = df[df['residue_number'] == min_glycan_res]
+        c1_atoms = first_glycan[first_glycan['atom_name'] == 'C1']
+        if len(c1_atoms) > 0:
+          c1_coord = c1_atoms.iloc[0][['x', 'y', 'z']].values.astype(float)
+          chain = first_glycan['chain_id'].iloc[0]
+          with open(pdb_path, 'r') as f:
+            all_lines = f.readlines()
+            lines = [line for line in all_lines if line.startswith('ATOM')]
+          for line in lines:
+            if len(line) < 54:
+              continue
+            res_name = line[17:20].strip()
+            if res_name in {'ASN', 'SER', 'THR', 'HYP'}:
+              atom_name = line[12:16].strip()
+              if atom_name in {'ND2', 'OG', 'OG1'}:
+                x, y, z = float(line[30:38]), float(line[38:46]), float(line[46:54])
+                distance = np.linalg.norm(c1_coord - np.array([x, y, z]))
+                if distance < 1.6:
+                  linker_res_num = int(line[22:26].strip())
+                  linker_res_name = res_name
+                  break
+          if linker_res_num is not None:
+            linker_atoms = []
+            for line in lines:
+              if len(line) >= 54 and int(line[22:26].strip()) == linker_res_num:
+                linker_atoms.append({
+                  'atom_number': int(line[6:11].strip()),
+                  'atom_name': line[12:16].strip(),
+                  'monosaccharide': linker_res_name,
+                  'chain_id': line[21:22].strip(),
+                  'residue_number': linker_res_num,
+                  'x': float(line[30:38]),
+                  'y': float(line[38:46]),
+                  'z': float(line[46:54]),
+                  'occupancy': float(line[54:60]) if len(line) > 60 else 1.0,
+                  'temperature_factor': float(line[60:66]) if len(line) > 66 else 0.0,
+                  'element': line[76:78].strip() if len(line) > 78 else '',
+                  'IUPAC': linker_res_name
+                })
+            if linker_atoms:
+              linker_df = pd.DataFrame(linker_atoms)
+              df = pd.concat([df, linker_df], ignore_index=True)
     flexibility = df.groupby('residue_number')['temperature_factor'].mean()
     flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
     monosaccharides = df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
@@ -1563,7 +1619,14 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
       monosaccharides = ex_df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
       flex_df = pd.DataFrame({'Monosaccharide_id': ex_df.residue_number.unique(), 'Monosaccharide': monosaccharides, 'flexibility': flexibility_rmsf}).reset_index(drop=True)
       flex_df['torsion_flexibility'] = np.nan
-  return flex_df if sasa.empty else pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility', 'torsion_flexibility']], on='Monosaccharide_id', how='left')
+  if sasa.empty:
+    return flex_df
+  merged = pd.merge(sasa, flex_df[['Monosaccharide_id', 'flexibility', 'torsion_flexibility']], on='Monosaccharide_id', how='outer')
+  mask = merged['Monosaccharide'].isna()
+  if mask.any():
+    linker_info = flex_df[flex_df['Monosaccharide_id'].isin(merged.loc[mask, 'Monosaccharide_id'])][['Monosaccharide_id', 'Monosaccharide']]
+    merged.loc[mask, 'Monosaccharide'] = merged.loc[mask, 'Monosaccharide_id'].map(linker_info.set_index('Monosaccharide_id')['Monosaccharide'])
+  return merged
 
 
 def compute_merge_SASA_flexibility_OH(glycan, mode='weighted', stereo=None, my_path=None):
@@ -2039,7 +2102,54 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
   if isinstance(interaction_dict, tuple):
       return pd.DataFrame()
   results = []
+  pdb_path = interaction_dict.get('__pdb_path__')
+  if pdb_path is not None:
+    glycan_residues = df[df['monosaccharide'].isin(set(map_dict.keys()))]
+    if len(glycan_residues) > 0:
+      min_glycan_res = glycan_residues['residue_number'].min()
+      first_glycan = df[df['residue_number'] == min_glycan_res]
+      c1_atoms = first_glycan[first_glycan['atom_name'] == 'C1']
+      if len(c1_atoms) > 0:
+        c1_coord = c1_atoms.iloc[0][['x', 'y', 'z']].values.astype(float)
+        chain = first_glycan['chain_id'].iloc[0]
+        with open(pdb_path, 'r') as f:
+          all_lines = f.readlines()
+          lines = [line for line in all_lines if line.startswith('ATOM')]
+        for line in lines:
+          if len(line) < 54:
+            continue
+          line_chain = line[21:22].strip()
+          res_name = line[17:20].strip()
+          if res_name in {'ASN', 'SER', 'THR', 'HYP'}:
+            atom_name = line[12:16].strip()
+            if atom_name in {'ND2', 'OG', 'OG1'}:
+              x, y, z = float(line[30:38]), float(line[38:46]), float(line[46:54])
+              distance = np.linalg.norm(c1_coord - np.array([x, y, z]))
+              if distance < 1.6:
+                res_num = int(line[22:26].strip())
+                linker_res_lines = [l for l in lines if len(l) >= 54 and int(l[22:26].strip()) == res_num]
+                atoms = {}
+                for lline in linker_res_lines:
+                  latom = lline[12:16].strip()
+                  if latom in {'CA', 'CB', 'CG', 'ND2', 'OG', 'OG1'}:
+                    atoms[latom] = np.array([float(lline[30:38]), float(lline[38:46]), float(lline[46:54])])
+                if len(atoms) < 3:
+                  continue
+                o5_coord = first_glycan[first_glycan['atom_name'] == 'O5'].iloc[0][['x', 'y', 'z']].values.astype(float)
+                if res_name == 'ASN' and all(k in atoms for k in ['CA', 'CB', 'CG', 'ND2']):
+                  coords_phi = [atoms['CA'], atoms['CB'], atoms['CG'], atoms['ND2']]
+                  coords_psi = [atoms['CB'], atoms['CG'], atoms['ND2'], c1_coord]
+                elif all(k in atoms for k in ['CA', 'CB']) and ('OG' in atoms or 'OG1' in atoms):
+                  og = atoms.get('OG', atoms.get('OG1'))
+                  coords_phi = [atoms['CA'], atoms['CB'], og, c1_coord]
+                  coords_psi = [atoms['CB'], og, c1_coord, o5_coord]
+                else:
+                  continue
+                results.append({'linkage': f"{res_name}{res_num}-{min_glycan_res}_{first_glycan['monosaccharide'].iloc[0]}", 'phi': round(calculate_torsion_angle(coords_phi), 2), 'psi': round(calculate_torsion_angle(coords_psi), 2), 'omega': np.nan, 'anomeric_form': 'linker', 'position': 0})
+                break
   for donor_key, linkage_info in interaction_dict.items():
+    if donor_key == '__pdb_path__':
+      continue
     if not any('_(' in link for link in linkage_info):
       continue
     linkage_str = linkage_info[0]
@@ -2057,17 +2167,17 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
     # Special handling for sialic acid
     if any(mono in donor_key for mono in {'SIA', 'NGC', '0KN'}):
       o5_name = 'O6'  # In sialic acid, O5 is actually O6
-      c1_name = 'C2'      # Use C2 instead of C1 for sialic acid
+      c1_name = 'C2'  # Use C2 instead of C1 for sialic acid
     else:
       o5_name = 'O5'
-      c1_name = 'C1'      # Normal C1 for other residues
+      c1_name = 'C1'  # Normal C1 for other residues
     o_pos = f'O{pos}'
     coords_phi = [
         donor[donor['atom_name'] == o5_name].iloc[0][['x', 'y', 'z']].values.astype(float),
         donor[donor['atom_name'] == c1_name].iloc[0][['x', 'y', 'z']].values.astype(float),
         acceptor[acceptor['atom_name'] == o_pos].iloc[0][['x', 'y', 'z']].values.astype(float),
         acceptor[acceptor['atom_name'] == f'C{pos}'].iloc[0][['x', 'y', 'z']].values.astype(float)
-        ]
+    ]
     has_c6 = not acceptor[acceptor['atom_name'] == 'C6'].empty
     next_c = pos + 1 if (pos < 6 and has_c6) or (pos < 5 and not has_c6) else 1
     coords_psi = [coords_phi[1], coords_phi[2], coords_phi[3], acceptor[acceptor['atom_name'] == f'C{next_c}'].iloc[0][['x', 'y', 'z']].values.astype(float)]
@@ -2078,8 +2188,7 @@ def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[s
             coords_phi[2],  # O6
             coords_phi[3],  # C6
             acceptor[acceptor['atom_name'] == 'C5'].iloc[0][['x', 'y', 'z']].values.astype(float),
-            acceptor[acceptor['atom_name'] == 'O5'].iloc[0][['x', 'y', 'z']].values.astype(float)
-            ]
+            acceptor[acceptor['atom_name'] == 'O5'].iloc[0][['x', 'y', 'z']].values.astype(float)]
       except (IndexError, KeyError):
         coords_omega = []
     else:
