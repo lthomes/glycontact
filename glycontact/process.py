@@ -1397,13 +1397,40 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
     if is_single_pdb:
       glycan_residues = set(df['residue_number'])
       glycan_chains = set(df['chain_id']) if 'chain_id' in df.columns else {None}
-      atom_indices = []
+      coords = structure.xyz[0]
+      glycan_coords = []
+      glycan_atom_original_indices = []
       for atom in structure.topology.atoms:
         res = atom.residue
         chain_match = atom.residue.chain.chain_id in glycan_chains if glycan_chains != {None} else True
         if chain_match and (res.resSeq in glycan_residues or (res.name in NON_MONO and any(r.resSeq in glycan_residues for r in structure.topology.residues if r.chain == res.chain))):
-          atom_indices.append(atom.index)
-      structure = structure.atom_slice(atom_indices)
+          glycan_coords.append(coords[atom.index])
+          glycan_atom_original_indices.append(atom.index)
+      glycan_coords = np.array(glycan_coords)
+      keep_atom_indices = []
+      glycan_atom_indices = set()
+      cutoff_distance = 1.0
+      for atom in structure.topology.atoms:
+        res = atom.residue
+        if res.is_water or res.name in {'HOH', 'WAT', 'SOL', 'NA', 'CL', 'K', 'MG', 'CA', 'ZN'}:
+          continue
+        if atom.element.symbol == 'H':
+          continue
+        atom_coord = coords[atom.index]
+        if atom.index in glycan_atom_original_indices:
+          keep_atom_indices.append(atom.index)
+          glycan_atom_indices.add(len(keep_atom_indices) - 1)
+        else:
+          distances = np.linalg.norm(glycan_coords - atom_coord, axis=1)
+          if np.min(distances) <= cutoff_distance:
+            is_duplicate = False
+            for existing_idx in keep_atom_indices:
+              if np.linalg.norm(coords[existing_idx] - atom_coord) < 0.0001:
+                is_duplicate = True
+                break
+            if not is_duplicate:
+              keep_atom_indices.append(atom.index)
+      structure = structure.atom_slice(keep_atom_indices)
     sasa = md.shrake_rupley(structure, mode='atom')
     # Group SASA by residue
     mono_sasa, modification_to_parent = {}, {}
@@ -1424,6 +1451,8 @@ def get_sasa_table(glycan, stereo = None, my_path=None, fresh=False):
           modification_to_parent[res.resSeq] = parent_resSeq
     # Second pass: calculate SASA value
     for atom in structure.topology.atoms:
+      if is_single_pdb and atom.index not in glycan_atom_indices:
+        continue
       res = atom.residue
       res_seq = res.resSeq
       # If this is a modification residue, get its parent's resSeq
@@ -1596,6 +1625,14 @@ def compute_merge_SASA_flexibility(glycan, mode='weighted', stereo=None, my_path
             if linker_atoms:
               linker_df = pd.DataFrame(linker_atoms)
               df = pd.concat([df, linker_df], ignore_index=True)
+              structure = md.load(pdb_path)
+              linker_chain_id = linker_df['chain_id'].iloc[0]
+              linker_atom_indices = [atom.index for atom in structure.topology.atoms if atom.residue.resSeq == linker_res_num and atom.residue.chain.chain_id == linker_chain_id]
+              if linker_atom_indices:
+                sasa_raw = md.shrake_rupley(structure, mode='atom')
+                linker_sasa = sum(sasa_raw[0][idx] for idx in linker_atom_indices) * 100
+                linker_sasa_row = pd.DataFrame({'Monosaccharide_id': [linker_res_num], 'Monosaccharide': [linker_res_name], 'SASA': [linker_sasa], 'Standard Deviation': [float('nan')], 'Coefficient of Variation': [float('nan')]})
+                sasa = pd.concat([sasa, linker_sasa_row], ignore_index=True)
     flexibility = df.groupby('residue_number')['temperature_factor'].mean()
     flexibility_rmsf = np.sqrt(3 * flexibility / (8 * np.pi**2))
     monosaccharides = df.drop_duplicates('residue_number').set_index('residue_number')['IUPAC']
