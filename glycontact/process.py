@@ -2091,14 +2091,23 @@ def calculate_torsion_angle(coords: List[List[float]]) -> float:
       ))
 
 
-def get_glycosidic_torsions(df: pd.DataFrame, interaction_dict: Dict[str, List[str]]) -> pd.DataFrame:
+def get_glycosidic_torsions(df_or_glycan, interaction_dict_or_pdb_path=None):
   """Calculate phi/psi/omega torsion angles for all glycosidic linkages in structure.
   Args:
-    df (pd.DataFrame): DataFrame with PDB atomic coordinates
-    interaction_dict (dict): Dictionary of glycosidic linkages
+    df_or_glycan: Either a pd.DataFrame with PDB atomic coordinates OR a glycan string (IUPAC)
+    interaction_dict_or_pdb_path: Either a dict of glycosidic linkages OR a PDB file path (when first arg is glycan)
   Returns:
     pd.DataFrame: Phi/psi angles for each linkage
   """
+  if isinstance(df_or_glycan, str):
+    glycan = df_or_glycan
+    pdb_path = interaction_dict_or_pdb_path
+    if pdb_path is None:
+      raise ValueError("When providing glycan as string, pdb_path must be provided")
+    df, interaction_dict = get_annotation(glycan, pdb_path)
+  else:
+    df = df_or_glycan
+    interaction_dict = interaction_dict_or_pdb_path
   if isinstance(interaction_dict, tuple):
       return pd.DataFrame()
   results = []
