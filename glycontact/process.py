@@ -192,7 +192,7 @@ def process_glycoshape(fallback_path):
 
 
 def get_global_path():
-  if original_path.exists() and any(original_path.iterdir()):
+  if original_path.exists():
     return original_path
   elif fallback_path.exists():
     print("Identified zipped GlycoShape structures. Starting extraction.")
@@ -215,16 +215,8 @@ def get_global_path():
       else:
         raise FileNotFoundError("Extraction of GlycoShape structures failed. If you followed all the steps described on https://github.com/lthomes/glycontact, feel free to open an issue.")
     else:
-      print("No GlycoShape structures found locally. Attempting to download from API...")
-      try:
-        fetch_and_convert_pdbs(base_output=str(original_path))
-        if original_path.exists() and any(original_path.iterdir()):
-          print("Download from API succeeded. You should be good to go.")
-          return original_path
-        else:
-          raise FileNotFoundError("Download from API completed but no structures were saved.")
-      except Exception as e:
-        raise FileNotFoundError(f"Could not obtain GlycoShape structures. Download them from https://glycoshape.org/downloads or ensure API access. Error: {e}")
+      original_path.mkdir(parents=True, exist_ok=True)
+      return original_path
 
 
 if os.getenv('PYTEST_RUNNING') or os.getenv('SKIP_GLYCOSHAPE_CHECK'):
@@ -326,12 +318,21 @@ def fetch_pdbs(glycan, stereo=None, my_path=None):
     stereo = 'beta' if any(glycan.endswith(mono) for mono in BETA) else 'alpha'
   glycan_path = (get_global_path() if global_path is None else global_path) / glycan if my_path is None else my_path
   if not os.path.exists(glycan_path):
-    if glycan in unilectin_data:
-      matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
-    else:
-      raise FileNotFoundError(f"No directory found for glycan: {glycan}")
-  else:
-    matching_pdbs = [glycan_path / pdb for pdb in os.listdir(glycan_path) if stereo in pdb]
+    print(f"Glycan {glycan} not found locally. Downloading from GlycoShape...")
+    try:
+      download_from_glycoshape(glycan)
+      if not os.path.exists(glycan_path):
+        raise FileNotFoundError(f"Download failed or no structures available for glycan: {glycan}")
+    except Exception as e:
+      print(f"GlycoShape download failed: {e}. Trying UniLectin as fallback...")
+      if glycan in unilectin_data:
+        matching_pdbs = [(res, inty) for res, inty in unilectin_data[glycan] if res.IUPAC.tolist()[0].endswith(stereo[0]) or f"({stereo[0]}1-1)" in res.IUPAC.tolist()[0]]
+        if not matching_pdbs:
+          raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
+        return matching_pdbs
+      else:
+        raise FileNotFoundError(f"Could not find glycan {glycan} in GlycoShape or UniLectin: {e}")
+  matching_pdbs = [glycan_path / pdb for pdb in os.listdir(glycan_path) if stereo in pdb]
   if not matching_pdbs:
     raise FileNotFoundError(f"No PDB files with '{stereo}' stereochemistry found for glycan: {glycan}")
   return matching_pdbs
@@ -362,26 +363,29 @@ def download_from_glycoshape(IUPAC):
     print('This IUPAC is not formatted properly: ignored')
     return False
   IUPAC_clean = canonicalize_iupac(IUPAC)
-  outpath = global_path / IUPAC_clean
-  IUPAC_name = quote(IUPAC)
+  base_path = get_global_path() if global_path is None else global_path
+  outpath = base_path / IUPAC_clean
   os.makedirs(outpath, exist_ok=True)
-  max_cluster = None
-  for linktype in ['alpha', 'beta']:
-    for i in range(0, 200):
-      if max_cluster is not None and i > max_cluster:
-        break
-      output = f'_{linktype}_{i}.pdb'
-      url = f'https://glycoshape.org/database/{IUPAC_name}/PDB_format_ATOM/cluster{i}_{linktype}.PDB.pdb'
-      response = subprocess.run(f'curl "{url}"', shell=True, capture_output=True, text=True).stdout
-      if "404 Not Found" in response:
-        if max_cluster is None:
-          max_cluster = i - 1
-        break
-      # Only save if it's not a 404
-      subprocess.run(f'curl -o {output} "{url}"', shell=True)
-      new_name = f'cluster{i}_{linktype}.PDB.pdb'
-      os.rename(output, new_name)
-      shutil.move(new_name, outpath)
+  gly_id = None
+  for key, entry in glycoshape_mirror.items():
+    if entry.get('iupac') == IUPAC or entry.get('iupac') == IUPAC_clean:
+      gly_id = key
+      break
+  if not gly_id:
+    raise ValueError(f"Could not find GlyToucan ID for IUPAC: {IUPAC}")
+  download_url = f"https://glycoshape.org/api/download/{gly_id}"
+  response = requests.get(download_url)
+  response.raise_for_status()
+  with tempfile.TemporaryDirectory() as tmpdir:
+    zip_path = Path(tmpdir) / "glycan.zip"
+    with open(zip_path, "wb") as f:
+      f.write(response.content)
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+      zip_ref.extractall(tmpdir)
+    for item in Path(tmpdir).rglob("*.PDB.pdb"):
+      if "cluster" in item.name and ("_alpha" in item.name or "_beta" in item.name):
+        new_name = item.name.replace(".PDB.", ".")
+        shutil.copy(str(item), str(outpath / new_name))
 
 
 def extract_3D_coordinates(pdb_file):
