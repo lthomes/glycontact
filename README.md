@@ -1,13 +1,13 @@
 # GlyContact: 3D Analysis of Glycan Structures
 
-GlyContact is a Python package for retrieving, processing, and analyzing 3D glycan structures from GlycoShape/molecular dynamics, NMR, or X-ray crystallography. While glycans are traditionally represented as linear text sequences, their branched structures and high flexibility create a complex 3D landscape that affects their biological function.
+GlyContact is a Python package for retrieving, processing, and analyzing 3D glycan structures from GlycoShape/molecular dynamics, NMR, or X-ray crystallography. Indeed, while glycans are traditionally represented as linear text sequences, their branched structures and high flexibility create a complex 3D landscape that affects their biological function.
 
 GlyContact provides a comprehensive toolkit for analyzing 3D glycan structures, enabling researchers to:
 
 1. Visualize complex glycan structures with 3D-SNFG symbols
-2. Quantify structural properties such as SASA and flexibility
-3. Analyze conformational preferences and structure variability
-4. Compare different glycan structures
+2. Quantify structural properties including solvent accessible surface area (SASA), motif flexibility and torsion angles
+3. Analyze relationships between glycan composition/sequence/class and these structural properties
+4. Compare different glycan structures that are either free, bound to lectins or covalently linked to glycoproteins 
 5. Generate structural features for machine learning applications
 
 These capabilities help bridge the gap between glycan sequence and function by revealing the critical spatial arrangements that determine molecular recognition.
@@ -26,27 +26,13 @@ pip install -e git+https://github.com/lthomes/glycontact.git#egg=glycontact[ml]
 
 ## Getting PDB files
 
-When you try GlyContact for the first time, you may encounter the following FileNotFoundError message: 
+**GlyContact** enables detailed exploration of glycan conformational properties by connecting glycan 3D structural data with their corresponding sequence information.
 
-```
-You need to equip GlyContact with GlycoShape structures. Download them from https://glycoshape.org/downloads and place the zipped folder into your GlyContact folder, then run it again.
-```
+By default, users can input glycan sequences, which are automatically mapped to the appropriate conformer structures from **GlycoShape** through built-in functions.
 
-GlyContact requires, at least, a folder with PDB files collected from GlycoShape. Below are the steps you must follow to get them:
+To streamline structural analysis, **GlyContact** integrates directly with the GlycoShape API, allowing automatic retrieval of structures and eliminating the challenges associated with manual data downloads.
 
-1. Download the GlycoShape.zip file from https://glycoshape.org/downloads
-
-2. If you have installed GlyContact using the `pip install` command, place the GlycoShape.zip file directly in the GlyContact package folder. The package location is indicated when you first `pip install` GlyContact. If, instead, you have git cloned GlyContact, place the GlycoShape.zip file in the `glycontact/glycontact/` folder. 
-
-3. Retry the import of the package. If you see the following lines, it works!
-
-```
-Identified zipped GlycoShape structures. Starting extraction.
-Processing glycan structures: 100%|██████████| 639/639 [00:06<00:00, 100.13it/s]
-Extraction succeeded. You should be good to go.
-```
-
-If after following these steps you still encounter an error message, feel free to open an issue.
+Alternatively, **GlyContact** can operate independently of GlycoShape if users prefer to supply their own structural data by providing file paths to local PDB files.
 
 
 ## Glycan Contact Maps
