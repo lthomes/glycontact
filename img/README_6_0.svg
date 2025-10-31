@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="600" height="310" viewBox="-550.0 -180.0 600 310">
+<defs>
+<path d="M-100,0 L0,0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt0" />
+<path d="M-200,0 L-100,0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt1" />
+<path d="M-300,50.0 L-200,0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt2" />
+<path d="M-400,50.0 L-300,50.0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt3" />
+<path d="M-500,50.0 L-400,50.0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt4" />
+<path d="M-400,-50.0 L-300,-50.0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt5" />
+<path d="M-500,-50.0 L-400,-50.0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt6" />
+<path d="M-300,-50.0 L-200,0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt7" />
+<path d="M0,-100 L0,0" stroke-width="4.0" stroke="#000000" id="lv6XR4nt8" />
+<radialGradient cx="0" cy="0" r="58.75" gradientUnits="userSpaceOnUse" id="lv6XR4nt9">
+<stop offset="0" stop-color="darkblue" stop-opacity="0.6274782895267306" />
+<stop offset="0.6" stop-color="darkblue" stop-opacity="0.25099131581069223" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-50,25.0 L50,25.0" stroke-width="0" id="lv6XR4nt10" />
+<radialGradient cx="-100" cy="0" r="58.75" gradientUnits="userSpaceOnUse" id="lv6XR4nt11">
+<stop offset="0" stop-color="darkblue" stop-opacity="0.3735346056557285" />
+<stop offset="0.6" stop-color="darkblue" stop-opacity="0.1494138422622914" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-150,25.0 L-50,25.0" stroke-width="0" id="lv6XR4nt12" />
+<path d="M-250,25.0 L-150,25.0" stroke-width="0" id="lv6XR4nt13" />
+<radialGradient cx="-300" cy="50.0" r="55.00000000000001" gradientUnits="userSpaceOnUse" id="lv6XR4nt14">
+<stop offset="0" stop-color="green" stop-opacity="0.33337957037571847" />
+<stop offset="0.6" stop-color="green" stop-opacity="0.1333518281502874" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-350,75.0 L-250,75.0" stroke-width="0" id="lv6XR4nt15" />
+<radialGradient cx="-400" cy="50.0" r="58.75" gradientUnits="userSpaceOnUse" id="lv6XR4nt16">
+<stop offset="0" stop-color="darkblue" stop-opacity="0.7959181098375804" />
+<stop offset="0.6" stop-color="darkblue" stop-opacity="0.3183672439350322" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-450,75.0 L-350,75.0" stroke-width="0" id="lv6XR4nt17" />
+<radialGradient cx="-500" cy="50.0" r="55.00000000000001" gradientUnits="userSpaceOnUse" id="lv6XR4nt18">
+<stop offset="0" stop-color="darkgoldenrod" stop-opacity="1.04" />
+<stop offset="0.6" stop-color="darkgoldenrod" stop-opacity="0.41600000000000004" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-550,75.0 L-450,75.0" stroke-width="0" id="lv6XR4nt19" />
+<radialGradient cx="-300" cy="-50.0" r="55.00000000000001" gradientUnits="userSpaceOnUse" id="lv6XR4nt20">
+<stop offset="0" stop-color="green" stop-opacity="0.551063929291664" />
+<stop offset="0.6" stop-color="green" stop-opacity="0.22042557171666563" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-350,-25.0 L-250,-25.0" stroke-width="0" id="lv6XR4nt21" />
+<radialGradient cx="-400" cy="-50.0" r="58.75" gradientUnits="userSpaceOnUse" id="lv6XR4nt22">
+<stop offset="0" stop-color="darkblue" stop-opacity="0.3852175770378788" />
+<stop offset="0.6" stop-color="darkblue" stop-opacity="0.15408703081515152" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-450,-25.0 L-350,-25.0" stroke-width="0" id="lv6XR4nt23" />
+<radialGradient cx="-500" cy="-50.0" r="55.00000000000001" gradientUnits="userSpaceOnUse" id="lv6XR4nt24">
+<stop offset="0" stop-color="darkgoldenrod" stop-opacity="0.5639899053870101" />
+<stop offset="0.6" stop-color="darkgoldenrod" stop-opacity="0.22559596215480404" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-550,-25.0 L-450,-25.0" stroke-width="0" id="lv6XR4nt25" />
+<radialGradient cx="0" cy="-100" r="55.00000000000001" gradientUnits="userSpaceOnUse" id="lv6XR4nt26">
+<stop offset="0" stop-color="firebrick" stop-opacity="0.34065614854067816" />
+<stop offset="0.6" stop-color="firebrick" stop-opacity="0.13626245941627127" />
+<stop offset="1" stop-color="white" stop-opacity="0" />
+</radialGradient>
+<path d="M-50,-75.0 L50,-75.0" stroke-width="0" id="lv6XR4nt27" />
+</defs>
+<g transform="rotate(0 -250.0 -25.0)">
+<use xlink:href="#lv6XR4nt0" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt0" startOffset="50%">
+<tspan dy="-0.5em">β 4</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt1" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt1" startOffset="50%">
+<tspan dy="-0.5em">β 4</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt2" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt2" startOffset="50%">
+<tspan dy="-0.5em">α 3</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt3" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt3" startOffset="50%">
+<tspan dy="-0.5em">β 2</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt4" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt4" startOffset="50%">
+<tspan dy="-0.5em">β 4</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt5" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt5" startOffset="50%">
+<tspan dy="-0.5em">β 2</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt6" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt6" startOffset="50%">
+<tspan dy="-0.5em">β 4</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt7" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt7" startOffset="50%">
+<tspan dy="-0.5em">α 6</tspan>
+</textPath></text>
+<use xlink:href="#lv6XR4nt8" />
+<text font-size="20.0" text-anchor="middle" fill="#000000" valign="middle"><textPath xlink:href="#lv6XR4nt8" startOffset="50%">
+<tspan dy="-0.5em">α 6</tspan>
+</textPath></text>
+<circle cx="0" cy="0" r="58.75" fill="url(#lv6XR4nt9)" />
+<rect x="-25.0" y="-25.0" width="50" height="50" fill="#0385AE" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt10" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt10" startOffset="50%"></textPath></text>
+<circle cx="-100" cy="0" r="58.75" fill="url(#lv6XR4nt11)" />
+<rect x="-125.0" y="-25.0" width="50" height="50" fill="#0385AE" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt12" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt12" startOffset="50%"></textPath></text>
+<circle cx="-200" cy="0" r="25.0" fill="#058F60" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt13" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt13" startOffset="50%"></textPath></text>
+<circle cx="-300" cy="50.0" r="55.00000000000001" fill="url(#lv6XR4nt14)" />
+<circle cx="-300" cy="50.0" r="25.0" fill="#058F60" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt15" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt15" startOffset="50%"></textPath></text>
+<circle cx="-400" cy="50.0" r="58.75" fill="url(#lv6XR4nt16)" />
+<rect x="-425.0" y="25.0" width="50" height="50" fill="#0385AE" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt17" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt17" startOffset="50%"></textPath></text>
+<circle cx="-500" cy="50.0" r="55.00000000000001" fill="url(#lv6XR4nt18)" />
+<circle cx="-500" cy="50.0" r="25.0" fill="#FCC326" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt19" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt19" startOffset="50%"></textPath></text>
+<circle cx="-300" cy="-50.0" r="55.00000000000001" fill="url(#lv6XR4nt20)" />
+<circle cx="-300" cy="-50.0" r="25.0" fill="#058F60" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt21" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt21" startOffset="50%"></textPath></text>
+<circle cx="-400" cy="-50.0" r="58.75" fill="url(#lv6XR4nt22)" />
+<rect x="-425.0" y="-75.0" width="50" height="50" fill="#0385AE" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt23" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt23" startOffset="50%"></textPath></text>
+<circle cx="-500" cy="-50.0" r="55.00000000000001" fill="url(#lv6XR4nt24)" />
+<circle cx="-500" cy="-50.0" r="25.0" fill="#FCC326" stroke-width="2.0" stroke="#000000" />
+<use xlink:href="#lv6XR4nt25" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt25" startOffset="50%"></textPath></text>
+<circle cx="0" cy="-100" r="55.00000000000001" fill="url(#lv6XR4nt26)" />
+<path d="M-25.0,-78.34936490538904 L0,-121.65063509461096 L25.0,-78.34936490538904 Z" fill="#C23537" stroke="#000000" stroke-width="2.0" />
+<use xlink:href="#lv6XR4nt27" />
+<text font-size="17.5" fill="#000000" text-anchor="middle"><textPath xlink:href="#lv6XR4nt27" startOffset="50%"></textPath></text>
+</g>
+</svg>
