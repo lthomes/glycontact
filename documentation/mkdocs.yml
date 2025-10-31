@@ -43,6 +43,7 @@ plugins:
       default_handler: python
       handlers:
         python:
+          paths: ["."]
           options:
               docstring_style: google  # or "numpy"
               show_source: false

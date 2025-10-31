@@ -1654,7 +1654,7 @@
 
 
 <h3 id="glycontact.learning.create_dataset" class="doc doc-heading">
-            <code class=" language-python"><span class="n">create_dataset</span><span class="p">(</span><span class="n">fresh</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span></code>
+            <code class=" language-python"><span class="n">create_dataset</span><span class="p">(</span><span class="n">fresh</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">splits</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span></code>
 
 <a href="#glycontact.learning.create_dataset" class="headerlink" title="Permanent link">&para;</a></h3>
 
@@ -1689,6 +1689,22 @@
             </td>
             <td>
                   <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>splits</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of two or three floats representing the train-test split ratios.</p>
+              </div>
+            </td>
+            <td>
+                  <code>[0.8, 0.2]</code>
             </td>
           </tr>
       </tbody>
