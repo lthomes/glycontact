@@ -16,7 +16,7 @@ GlyContact provides a comprehensive toolkit that enables researchers to:
 - Quantify structural properties including **solvent accessible surface area** (SASA), **motif flexibility** and **torsion angles**
 - Analyze **relationships** between glycan composition/sequence/class and these structural properties
 - **Compare** different glycan structures that are either free, bound to lectins or covalently linked to glycoproteins 
-- Generate structural features for** machine learning applications**
+- Generate structural features for **machine learning applications**
 
 These capabilities help bridge the gap between **glycan sequence** and **function** by revealing the critical spatial arrangements that determine molecular recognition.
 

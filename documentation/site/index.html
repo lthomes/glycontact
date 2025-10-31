@@ -542,10 +542,10 @@
 <p>GlyContact provides a comprehensive toolkit that enables researchers to:</p>
 <ul>
 <li>Visualize complex glycan structures with <strong>3D-SNFG symbols</strong></li>
-<li>Quantify structural properties such as <strong>SASA</strong> and <strong>flexibility</strong></li>
-<li>Analyze <strong>conformational preferences</strong> and structure variability</li>
-<li>Compare different glycan structures</li>
-<li>Generate structural features for <strong>machine learning applications</strong></li>
+<li>Quantify structural properties including <strong>solvent accessible surface area</strong> (SASA), <strong>motif flexibility</strong> and <strong>torsion angles</strong></li>
+<li>Analyze <strong>relationships</strong> between glycan composition/sequence/class and these structural properties</li>
+<li><strong>Compare</strong> different glycan structures that are either free, bound to lectins or covalently linked to glycoproteins </li>
+<li>Generate structural features for** machine learning applications**</li>
 </ul>
 <p>These capabilities help bridge the gap between <strong>glycan sequence</strong> and <strong>function</strong> by revealing the critical spatial arrangements that determine molecular recognition.</p>
 <p><br><br></p>
@@ -574,26 +574,10 @@
 </code></pre></div>
 <p><br></p>
 <h3 id="getting-started-with-glycontact"><strong>Getting started with GlyContact</strong><a class="headerlink" href="#getting-started-with-glycontact" title="Permanent link">&para;</a></h3>
-<p>When you try GlyContact for the first time, you may encounter the following <code>FileNotFoundError</code> message: </p>
-<div class="highlight"><pre><span></span><code>You<span class="w"> </span>need<span class="w"> </span>to<span class="w"> </span>equip<span class="w"> </span>GlyContact<span class="w"> </span>with<span class="w"> </span>GlycoShape<span class="w"> </span>structures.<span class="w"> </span>Download<span class="w"> </span>them<span class="w"> </span>from<span class="w"> </span>https://glycoshape.org/downloads<span class="w"> </span>and<span class="w"> </span>place<span class="w"> </span>the<span class="w"> </span>zipped<span class="w"> </span>folder<span class="w"> </span>into<span class="w"> </span>your<span class="w"> </span>GlyContact<span class="w"> </span>folder,<span class="w"> </span><span class="k">then</span><span class="w"> </span>run<span class="w"> </span>it<span class="w"> </span>again.
-</code></pre></div>
-<p>GlyContact requires, at least, a folder with PDB files collected from GlycoShape. Below are the steps you must follow to get them:</p>
-<ol>
-<li>
-<p>Download the GlycoShape.zip file from https://glycoshape.org/downloads</p>
-</li>
-<li>
-<p>If you have installed GlyContact using the <code>pip install</code> command, place the GlycoShape.zip file directly in the GlyContact package folder. The package location is indicated when you first <code>pip install</code> GlyContact. If, instead, you have git cloned GlyContact, place the GlycoShape.zip file in the <code>glycontact/glycontact/</code> folder. </p>
-</li>
-<li>
-<p>Retry the import of the package. If you see the following lines, it works!</p>
-</li>
-</ol>
-<div class="highlight"><pre><span></span><code>Identified<span class="w"> </span>zipped<span class="w"> </span>GlycoShape<span class="w"> </span>structures.<span class="w"> </span>Starting<span class="w"> </span>extraction.
-Processing<span class="w"> </span>glycan<span class="w"> </span>structures:<span class="w"> </span><span class="m">100</span>%<span class="p">|</span>██████████<span class="p">|</span><span class="w"> </span><span class="m">639</span>/639<span class="w"> </span><span class="o">[</span><span class="m">00</span>:06&lt;<span class="m">00</span>:00,<span class="w"> </span><span class="m">100</span>.13it/s<span class="o">]</span>
-Extraction<span class="w"> </span>succeeded.<span class="w"> </span>You<span class="w"> </span>should<span class="w"> </span>be<span class="w"> </span>good<span class="w"> </span>to<span class="w"> </span>go.
-</code></pre></div>
-<p>If after following these steps you still encounter an error message, feel free to open an issue.</p>
+<p><strong>GlyContact</strong> enables detailed exploration of glycan conformational properties by connecting glycan 3D structural data with their corresponding sequence information.</p>
+<p>By default, users can input glycan sequences, which are automatically mapped to the appropriate conformer structures from <strong>GlycoShape</strong> through built-in functions.</p>
+<p>To streamline structural analysis, <strong>GlyContact</strong> integrates directly with the GlycoShape API, allowing automatic retrieval of structures and eliminating the challenges associated with manual data downloads.</p>
+<p>Alternatively, <strong>GlyContact</strong> can operate independently of GlycoShape if users prefer to supply their own structural data by providing file paths to local PDB files.</p>
 <p><br><br></p>
 <h2 id="contributing"><strong>Contributing</strong><a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <hr />
