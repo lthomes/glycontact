@@ -24,6 +24,10 @@ An optional `[ml]` install is available for machine learning features:
 pip install -e git+https://github.com/lthomes/glycontact.git#egg=glycontact[ml]
 ```
 
+If you want to see how you can use `GlyContact` to work with glycans in lectin complexes or in glycoproteins, check out this Jupyter notebook with some pointers:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lthomes/glycontact/blob/main/examples.ipynb)
+
 ## Getting PDB files
 
 **GlyContact** enables detailed exploration of glycan conformational properties by connecting glycan 3D structural data with their corresponding sequence information.
@@ -35,10 +39,11 @@ To streamline structural analysis, **GlyContact** integrates directly with the G
 Alternatively, **GlyContact** can operate independently of GlycoShape if users prefer to supply their own structural data by providing file paths to local PDB files.
 
 
+
+
 ## Glycan Contact Maps
 
 Contact maps reveal the spatial relationships between monosaccharides in a glycan structure. These maps help identify which parts of the glycan are in close proximity, providing insights into potential functional regions.
-
 
 ```python
 from glycontact.process import get_contact_tables
@@ -53,14 +58,13 @@ draw_contact_map(contact_tables[0], size=1.0)
 
 
     
-![png](README_files/README_4_0.png)
+![png](README_files/README_5_0.png)
     
 
 
 ## Surface Accessibility and Flexibility
 
 The solvent-accessible surface area (SASA) and flexibility of monosaccharides are crucial determinants of glycan-protein interactions. GlyContact calculates these properties and allows visualization of their distribution across the glycan structure.
-
 
 ```python
 from glycontact.visualize import plot_glycan_score
@@ -71,7 +75,7 @@ plot_glycan_score(glycan, attribute="SASA")
 
 
     
-![svg](README_files/README_6_0.svg)
+![svg](README_files/README_7_0.svg)
     
 
 
@@ -80,15 +84,14 @@ plot_glycan_score(glycan, attribute="SASA")
 
 Glycosidic torsion angles (phi/psi) determine the overall shape of glycans. GlyContact can analyze these angles across multiple structures to identify preferred conformations, similar to protein Ramachandran plots.
 
-
 ```python
 from glycontact.visualize import ramachandran_plot
-ramachandran_plot("GlcNAc(b1-4)GlcNAc")
+ramachandran_plot("Gal(b1-4)GlcNAc")
 ```
 
 
     
-![png](README_files/README_8_0.png)
+![png](README_files/README_9_0.png)
     
 
 
@@ -107,8 +110,3 @@ If you use GlyContact in your research, please cite:
 ## License
 
 This project is licensed under the MIT License—see the LICENSE file for details.
-
-
-```python
-
-```
