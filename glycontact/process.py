@@ -2761,7 +2761,7 @@ def get_glycan_shielding(glycan, pdb_path, cutoff=15.0, threshold=1.0, same_chai
     threshold (float): Minimum delta-SASA in A^2 to include in results (default 1.0)
     same_chain_only (bool): If True, only return residues from the same protein chain as glycan attachment (default True)
   Returns:
-    pd.DataFrame: DataFrame with columns chain, resSeq, resName, SASA_protein, SASA_complex, delta_SASA for residues showing appreciable shielding
+    pd.DataFrame: DataFrame with columns chain, resSeq, resName, SASA_protein, SASA_complex, delta_SASA, percent_shielded for residues showing appreciable shielding
   """
   glycan_df, interaction_dict = get_annotation(glycan, pdb_path, threshold=3.5)
   if len(glycan_df) == 0:
@@ -2821,13 +2821,15 @@ def get_glycan_shielding(glycan, pdb_path, cutoff=15.0, threshold=1.0, same_chai
       sasa_comp_val = sasa_complex[0, orig_idx]
       delta = sasa_prot_val - sasa_comp_val
       if abs(delta) >= threshold:
+        percent_shielded = (delta / sasa_prot_val * 100) if sasa_prot_val > 0 else 0
         results.append({
           'chain': res.chain.chain_id,
           'resSeq': res.resSeq,
           'resName': res.name,
           'SASA_protein': sasa_prot_val,
           'SASA_complex': sasa_comp_val,
-          'delta_SASA': delta
+          'delta_SASA': delta,
+          'percent_shielded': percent_shielded
         })
   result_df = pd.DataFrame(results)
   if len(result_df) > 0:
