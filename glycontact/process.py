@@ -2750,3 +2750,86 @@ def save_binding_pocket_pdb(result_df, pdb_path, glycan, output_path):
   subset_traj = traj.atom_slice(atom_indices_to_keep)
   subset_traj.save_pdb(output_path)
   return output_path
+
+
+def get_glycan_shielding(glycan, pdb_path, cutoff=15.0, threshold=1.0, same_chain_only=True):
+  """Calculate the change in solvent accessible surface area (delta-SASA) of protein residues due to glycan attachment.
+  Args:
+    glycan (str): IUPAC glycan sequence
+    pdb_path (str): Path to PDB file containing the glycan-protein complex
+    cutoff (float): Distance cutoff in Angstroms to identify potentially affected residues (default 15.0)
+    threshold (float): Minimum delta-SASA in A^2 to include in results (default 1.0)
+    same_chain_only (bool): If True, only return residues from the same protein chain as glycan attachment (default True)
+  Returns:
+    pd.DataFrame: DataFrame with columns chain, resSeq, resName, SASA_protein, SASA_complex, delta_SASA for residues showing appreciable shielding
+  """
+  glycan_df, interaction_dict = get_annotation(glycan, pdb_path, threshold=3.5)
+  if len(glycan_df) == 0:
+    return pd.DataFrame()
+  traj = md.load(pdb_path)
+  topology = traj.topology
+  glycan_residues = set((row['chain_id'], row['residue_number']) for _, row in glycan_df.iterrows())
+  glycan_atom_indices, protein_atom_indices = [], []
+  original_to_protein_res_idx = {}
+  protein_res_counter = 0
+  for orig_idx, res in enumerate(topology.residues):
+    res_key = (res.chain.chain_id, res.resSeq)
+    if res_key in glycan_residues:
+      for atom in res.atoms:
+        glycan_atom_indices.append(atom.index)
+    elif res.is_protein:
+      original_to_protein_res_idx[orig_idx] = protein_res_counter
+      protein_res_counter += 1
+      for atom in res.atoms:
+        protein_atom_indices.append(atom.index)
+  if len(glycan_atom_indices) == 0 or len(protein_atom_indices) == 0:
+    return pd.DataFrame()
+  glycan_coords = traj.xyz[0, glycan_atom_indices, :] * 10
+  attachment_chain = None
+  if same_chain_only:
+    min_dist = float('inf')
+    for res in topology.residues:
+      if res.is_protein and (res.chain.chain_id, res.resSeq) not in glycan_residues:
+        residue_atom_indices = [atom.index for atom in res.atoms]
+        residue_coords = traj.xyz[0, residue_atom_indices, :] * 10
+        distances = cdist(glycan_coords, residue_coords)
+        res_min_dist = np.min(distances)
+        if res_min_dist < min_dist:
+          min_dist = res_min_dist
+          attachment_chain = res.chain.chain_id
+  nearby_residue_orig_indices = []
+  for orig_idx, res in enumerate(topology.residues):
+    if res.is_protein and (res.chain.chain_id, res.resSeq) not in glycan_residues:
+      if same_chain_only and res.chain.chain_id != attachment_chain:
+        continue
+      residue_atom_indices = [atom.index for atom in res.atoms]
+      residue_coords = traj.xyz[0, residue_atom_indices, :] * 10
+      distances = cdist(glycan_coords, residue_coords)
+      if np.min(distances) <= cutoff:
+        nearby_residue_orig_indices.append(orig_idx)
+  if len(nearby_residue_orig_indices) == 0:
+    return pd.DataFrame()
+  protein_traj = traj.atom_slice(protein_atom_indices)
+  sasa_protein = md.shrake_rupley(protein_traj, mode='residue') * 100
+  sasa_complex = md.shrake_rupley(traj, mode='residue') * 100
+  results = []
+  for orig_idx in nearby_residue_orig_indices:
+    res = list(topology.residues)[orig_idx]
+    if orig_idx in original_to_protein_res_idx:
+      prot_idx = original_to_protein_res_idx[orig_idx]
+      sasa_prot_val = sasa_protein[0, prot_idx]
+      sasa_comp_val = sasa_complex[0, orig_idx]
+      delta = sasa_prot_val - sasa_comp_val
+      if abs(delta) >= threshold:
+        results.append({
+          'chain': res.chain.chain_id,
+          'resSeq': res.resSeq,
+          'resName': res.name,
+          'SASA_protein': sasa_prot_val,
+          'SASA_complex': sasa_comp_val,
+          'delta_SASA': delta
+        })
+  result_df = pd.DataFrame(results)
+  if len(result_df) > 0:
+    result_df = result_df.sort_values('delta_SASA', ascending=False).reset_index(drop=True)
+  return result_df
