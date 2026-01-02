@@ -45,6 +45,7 @@ Alternatively, **GlyContact** can operate independently of GlycoShape if users p
 
 Contact maps reveal the spatial relationships between monosaccharides in a glycan structure. These maps help identify which parts of the glycan are in close proximity, providing insights into potential functional regions.
 
+
 ```python
 from glycontact.process import get_contact_tables
 # Get monosaccharide contact tables
@@ -66,6 +67,7 @@ draw_contact_map(contact_tables[0], size=1.0)
 
 The solvent-accessible surface area (SASA) and flexibility of monosaccharides are crucial determinants of glycan-protein interactions. GlyContact calculates these properties and allows visualization of their distribution across the glycan structure.
 
+
 ```python
 from glycontact.visualize import plot_glycan_score
 plot_glycan_score(glycan, attribute="SASA")
@@ -83,6 +85,7 @@ plot_glycan_score(glycan, attribute="SASA")
 ## Glycosidic Torsion Angles
 
 Glycosidic torsion angles (phi/psi) determine the overall shape of glycans. GlyContact can analyze these angles across multiple structures to identify preferred conformations, similar to protein Ramachandran plots.
+
 
 ```python
 from glycontact.visualize import ramachandran_plot
@@ -103,10 +106,14 @@ Contributions to GlyContact are welcome! Please feel free to submit a Pull Reque
 
 If you use GlyContact in your research, please cite:
 
-```
-[Citation information will be added upon publication]
-```
+[Thomès et al., GlyContact analyzes glycan 3D structures at scale. Nat Commun, 16:11136, 2025](https://www.nature.com/articles/s41467-025-67590-y)
+
 
 ## License
 
 This project is licensed under the MIT License—see the LICENSE file for details.
+
+
+```python
+
+```
