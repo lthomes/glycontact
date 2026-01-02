@@ -382,10 +382,31 @@ def download_from_glycoshape(IUPAC):
       f.write(response.content)
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
       zip_ref.extractall(tmpdir)
-    for item in Path(tmpdir).rglob("*.PDB.pdb"):
-      if "cluster" in item.name and ("_alpha" in item.name or "_beta" in item.name):
-        new_name = item.name.replace(".PDB.", ".")
-        shutil.copy(str(item), str(outpath / new_name))
+    new_format_files = list(Path(tmpdir).rglob("PDB/*.pdb"))
+    if new_format_files:
+      for pdb_file in new_format_files:
+        stereo = pdb_file.stem
+        if stereo not in ['alpha', 'beta']:
+          continue
+        with open(pdb_file, 'r') as f:
+          lines = f.readlines()
+        model_num, current_lines = 0, []
+        for line in lines:
+          if line.startswith('MODEL'):
+            model_num = int(line.split()[1])
+            current_lines = []
+          elif line.startswith('ENDMDL'):
+            if current_lines:
+              cluster_name = f"cluster{model_num-1}_{stereo}.pdb"
+              with open(outpath / cluster_name, 'w') as out:
+                out.writelines(current_lines)
+          elif not line.startswith('MODEL') and not line.startswith('ENDMDL'):
+            current_lines.append(line)
+    else:
+      for item in Path(tmpdir).rglob("*.PDB.pdb"):
+        if "cluster" in item.name and ("_alpha" in item.name or "_beta" in item.name):
+          new_name = item.name.replace(".PDB.", ".")
+          shutil.copy(str(item), str(outpath / new_name))
 
 
 def extract_3D_coordinates(pdb_file):
@@ -413,12 +434,14 @@ def extract_3D_coordinates(pdb_file):
   # Open the PDB file for reading
   relevant_lines = [line for line in lines if line.startswith('HETATM')] if has_protein else [line for line in lines if line.startswith('ATOM')]
   # Handle NMR structures by relabeling chain IDs
-  if has_protein and has_hetatm and any(line.startswith('MODEL') for line in lines):
+  has_model = any(line.startswith('MODEL') for line in lines)
+  if has_model and ((has_protein and has_hetatm) or not has_protein):
     modified_lines, current_model = [], 0
+    record_type = 'HETATM' if has_protein else 'ATOM'
     for line in lines:
       if line.startswith('MODEL'):
         current_model = int(line.split()[1])
-      elif line.startswith('HETATM'):
+      elif line.startswith(record_type):
         # Relabel chain ID (at position 21)
         modified_line = f"{line[:21]}{chr(ord('A') + current_model - 1)}{line[22:]}"
         modified_lines.append(modified_line)
