@@ -1092,7 +1092,7 @@ def get_glycan_sequences_from_pdb(pdb_file):
     for child_key, link_pos, anomer in children:
       child_seq = build_sequence(child_key)
       if child_seq:
-        anomeric_carbon = 2 if child_seq.endswith(("Neu5Ac", "Neu5Gc", "Kdn")) else 1
+        anomeric_carbon = 2 if child_seq.endswith(("Neu5Ac", "Neu5Gc", "Kdn", "Fru", "Fruf")) else 1
         child_parts.append(f"{child_seq}({anomer}{anomeric_carbon}-{link_pos})")
     if len(child_parts) == 1:
       return f"{child_parts[0]}{mono}"
@@ -2241,6 +2241,9 @@ def get_glycosidic_torsions(df_or_glycan, interaction_dict_or_pdb_path=None):
     if any(mono in donor_key for mono in {'SIA', 'NGC', '0KN'}):
       o5_name = 'O6'  # In sialic acid, O5 is actually O6
       c1_name = 'C2'  # Use C2 instead of C1 for sialic acid
+    elif any(mono in donor_key for mono in {'FRU', '1CU', '0CU', '4CD', '1CD'}):
+      o5_name = 'O5'
+      c1_name = 'C2'
     else:
       o5_name = 'O5'
       c1_name = 'C1'  # Normal C1 for other residues
